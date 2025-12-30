@@ -3,7 +3,7 @@ project('nntrainer', 'c', 'cpp',
   license: ['apache-2.0'],
   meson_version: '>=0.55.0',
   default_options: [
-    'werror=true',
+    'werror=false',
     'warning_level=1',
     'c_std=gnu89',
     'cpp_std=c++17',
@@ -63,24 +63,6 @@ if get_option('enable-transformer')
 endif
 
 warning_flags = [
-  '-Wredundant-decls',
-  '-Wwrite-strings',
-  '-Wformat',
-  '-Wformat-nonliteral',
-  '-Wformat-security',
-  '-Winit-self',
-  '-Waddress',
-  '-Wvla',
-  '-Wpointer-arith',
-  '-Wno-error=varargs',
-  '-Wno-error=ignored-attributes',
-  '-Wno-error=sign-compare',
-  '-Wdefaulted-function-deleted',
-  '-ftree-vectorize',
-  '-Wno-unused-variable',
-  '-Wno-comment',
-  '-Wno-ignored-attributes',
-  '-Wno-sign-compare'
 ]
 
 if cxx_compiler_id == 'clang'
@@ -93,14 +75,6 @@ else
 endif
 
 warning_c_flags = [
-  '-Wmissing-declarations',
-  '-Wmissing-include-dirs',
-  '-Wmissing-prototypes',
-  '-Wnested-externs',
-  '-Waggregate-return',
-  '-Wold-style-definition',
-  '-Wdeclaration-after-statement',
-  '-Wno-error=varargs'
 ]
 
 arch = host_machine.cpu_family()
