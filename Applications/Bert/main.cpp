@@ -893,6 +893,25 @@ std::wstring decodeUnicodeEscape(const std::wstring &input)
 }
 #endif
 
+ModelHandle createBert() {
+  
+  // TODO: BERT 모델 생성 로직 구현
+  std::cout << "createBert function called" << std::endl;
+
+  using ml::train::createLayer;
+
+  ModelHandle model = ml::train::createModel(ml::train::ModelType::NEURAL_NET);
+
+  std::vector<LayerHandle> layers;
+
+  layers.push_back(createLayer(
+    "input", {nntrainer::withKey("name", "input0"),
+              nntrainer::withKey("input_shape",
+                                 "1:1:" + std::to_string(INIT_SEQ_LEN))}));
+
+  return model;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -976,6 +995,8 @@ int main(int argc, char *argv[])
 #else
     bool apply_temp = (strcasecmp("true", args[3].c_str()) == 0);
 #endif
+
+    static ModelHandle g_model = createBert();
 
     // createAndRun(epoch, batch_size, weight_path);
 

@@ -2,6 +2,7 @@ import torch.nn.functional as F
 
 from torch import Tensor
 from transformers import AutoTokenizer, AutoModel
+from sentence_transformers import SentenceTransformer
 
 
 def average_pool(last_hidden_states: Tensor,
@@ -26,7 +27,8 @@ documents = [
 input_texts = queries + documents
 
 tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-large-instruct')
-model = AutoModel.from_pretrained('intfloat/multilingual-e5-large-instruct')
+# model = AutoModel.from_pretrained('intfloat/multilingual-e5-large-instruct')
+model = SentenceTransformer('intfloat/multilingual-e5-large-instruct')
 
 print(model)
 
