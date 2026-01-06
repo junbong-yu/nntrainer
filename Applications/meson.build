@@ -56,6 +56,7 @@ if get_option('enable-transformer')
   endif
   if (get_option('platform') != 'tizen') and (get_option('platform') != 'windows')
     subdir('CausalLM')
+    subdir('Bert')
   endif
 endif
 
