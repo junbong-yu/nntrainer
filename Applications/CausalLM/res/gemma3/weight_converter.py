@@ -70,15 +70,46 @@ def save_gemma3_for_nntrainer(params, config, dtype, file):
 if __name__ == "__main__":
     
     data_dtype = "float32"
-    model_path = "./270m"
+    model_path = "google/gemma-3-270m"
     output_name = "./nntr_gemma3_270m_fp32.bin"
     device = 'cpu'
     
-    config = AutoConfig.from_pretrained(model_path)
+    # config = AutoConfig.from_pretrained('google/gemma-3-270m')
     model = AutoModelForCausalLM.from_pretrained(model_path, dtype="float", trust_remote_code=True)
     model.eval()
 
     print(model)
 
-    with open(output_name, "wb") as f_model :
-        save_gemma3_for_nntrainer(model.state_dict(), config, data_dtype, f_model)
+#    with open(output_name, "wb") as f_model :
+#        save_gemma3_for_nntrainer(model.state_dict(), config, data_dtype, f_model)
+# Gemma3ForCausalLM(
+#   (model): Gemma3TextModel(
+#     (embed_tokens): Gemma3TextScaledWordEmbedding(262144, 640, padding_idx=0)
+#     (layers): ModuleList(
+#       (0-17): 18 x Gemma3DecoderLayer(
+#         (self_attn): Gemma3Attention(
+#           (q_proj): Linear(in_features=640, out_features=1024, bias=False)
+#           (k_proj): Linear(in_features=640, out_features=256, bias=False)
+#           (v_proj): Linear(in_features=640, out_features=256, bias=False)
+#           (o_proj): Linear(in_features=1024, out_features=640, bias=False)
+#           (q_norm): Gemma3RMSNorm((256,), eps=1e-06)
+#           (k_norm): Gemma3RMSNorm((256,), eps=1e-06)
+#         )
+#         (mlp): Gemma3MLP(
+#           (gate_proj): Linear(in_features=640, out_features=2048, bias=False)
+#           (up_proj): Linear(in_features=640, out_features=2048, bias=False)
+#           (down_proj): Linear(in_features=2048, out_features=640, bias=False)
+#           (act_fn): GELUTanh()
+#         )
+#         (input_layernorm): Gemma3RMSNorm((640,), eps=1e-06)
+#         (post_attention_layernorm): Gemma3RMSNorm((640,), eps=1e-06)
+#         (pre_feedforward_layernorm): Gemma3RMSNorm((640,), eps=1e-06)
+#         (post_feedforward_layernorm): Gemma3RMSNorm((640,), eps=1e-06)
+#       )
+#     )
+#     (norm): Gemma3RMSNorm((640,), eps=1e-06)
+#     (rotary_emb): Gemma3RotaryEmbedding()
+#     (rotary_emb_local): Gemma3RotaryEmbedding()
+#   )
+#   (lm_head): Linear(in_features=640, out_features=262144, bias=False)
+# )
