@@ -19,91 +19,93 @@
 #include <map>
 #include <transformer.h>
 
-namespace causallm {
-
-/**
- * @brief Embedding Class
- */
-WIN_EXPORT class Embedding : public Transformer {
-
-public:
-  /**
-   * @brief Construct a new Embedding object
-   * @param cfg Configuration for the model (config.json)
-   * @param generation_cfg Configuration for the generation (generation.json)
-   * @param nntr_cfg Configuration for nntrainer (nntr_config.json)
-   */
-  Embedding(json &cfg, json &generation_cfg, json &nntr_cfg);
+namespace causallm
+{
 
   /**
-   * @brief Destroy the Embedding object
+   * @brief Embedding Class
    */
-  virtual ~Embedding() {}
+  WIN_EXPORT class Embedding : public Transformer
+  {
 
-  /**
-   * @brief run the Embedding model
-   */
-  void run(const WSTR prompt, bool do_sample = false,
-           const WSTR system_prompt = "", const WSTR tail_prmopt = "") override;
+  public:
+    /**
+     * @brief Construct a new Embedding object
+     * @param cfg Configuration for the model (config.json)
+     * @param generation_cfg Configuration for the generation (generation.json)
+     * @param nntr_cfg Configuration for nntrainer (nntr_config.json)
+     */
+    Embedding(json &cfg, json &generation_cfg, json &nntr_cfg);
 
-  /**
-   * @brief Encode the prompt and return the embedding
-   * @param prompt User prompt
-   * @param system_prompt System prompt
-   * @param tail_prompt Tail prompt
-   * @return Embedding output from the model
-   */
-  std::vector<float *> encode(const WSTR prompt, const WSTR system_prompt = "",
-                              const WSTR tail_prompt = "");
+    /**
+     * @brief Destroy the Embedding object
+     */
+    virtual ~Embedding() {}
 
-protected:
-  /**
-   * @brief Setup the parameters for the Embedding model
-   */
-  void setupParameters(json &cfg, json &generation_dfg,
-                       json &nntr_cfg) override;
+    /**
+     * @brief run the Embedding model
+     */
+    void run(const WSTR prompt, bool do_sample = false,
+             const WSTR system_prompt = "", const WSTR tail_prmopt = "") override;
 
-  /**
-   * @brief Construct Model
-   */
-  void constructModel() override;
+    /**
+     * @brief Encode the prompt and return the embedding
+     * @param prompt User prompt
+     * @param system_prompt System prompt
+     * @param tail_prompt Tail prompt
+     * @return Embedding output from the model
+     */
+    std::vector<float *> encode(const WSTR prompt, const WSTR system_prompt = "",
+                                const WSTR tail_prompt = "");
 
-  /**
-   * @brief Map of module type suffix to layer type name
-   * @note This map is used to dynamically resolve the nntrainer layer type from
-   * the module configuration type suffix.
-   * Key: Suffix of the module type (e.g., "Pooling")
-   * Value: Registered layer name in nntrainer (e.g., "embedding_pooling")
-   * @note All layers in this map correspond to operations defined in
-   * sentence_transformers/models/ and are prefixed with "embedding_" in
-   * nntrainer to distinguish with the general layers.
-   */
-  static std::map<std::string, std::string> layer_map;
+  protected:
+    /**
+     * @brief Setup the parameters for the Embedding model
+     */
+    void setupParameters(json &cfg, json &generation_dfg,
+                         json &nntr_cfg) override;
 
-  /**
-   * @brief Add Module Layer
-   * @param config Configuration for the layer
-   */
-  void addModule(const std::string &type, int idx);
+    /**
+     * @brief Construct Model
+     */
+    void constructModel() override;
 
-private:
-  /**
-   * @brief Module metadata list (from modules.json)
-   */
-  std::vector<json> modules;
+    /**
+     * @brief Map of module type suffix to layer type name
+     * @note This map is used to dynamically resolve the nntrainer layer type from
+     * the module configuration type suffix.
+     * Key: Suffix of the module type (e.g., "Pooling")
+     * Value: Registered layer name in nntrainer (e.g., "embedding_pooling")
+     * @note All layers in this map correspond to operations defined in
+     * sentence_transformers/models/ and are prefixed with "embedding_" in
+     * nntrainer to distinguish with the general layers.
+     */
+    static std::map<std::string, std::string> layer_map;
 
-  /**
-   * @brief Module property configurations (from Module_name/config.json)
-   */
-  std::map<int, json> module_configs;
+    /**
+     * @brief Add Module Layer
+     * @param config Configuration for the layer
+     */
+    void addModule(const std::string &type, int idx);
 
-  /**
-   * @brief Get the last component of the module type string
-   * @param type Full type string (e.g., "sentence_transformers.models.Pooling")
-   * @return Last component (e.g., "Pooling")
-   */
-  std::string getLastComponent(const std::string &type);
-};
+    /**
+     * @brief Module metadata list (from modules.json)
+     */
+    std::vector<json> modules;
+
+    /**
+     * @brief Get the last component of the module type string
+     * @param type Full type string (e.g., "sentence_transformers.models.Pooling")
+     * @return Last component (e.g., "Pooling")
+     */
+    std::string getLastComponent(const std::string &type);
+
+  private:
+    /**
+     * @brief Module property configurations (from Module_name/config.json)
+     */
+    std::map<int, json> module_configs;
+  };
 
 } // namespace causallm
 

@@ -36,6 +36,7 @@
 #include "qwen3_causallm.h"
 #include "qwen3_moe_causallm.h"
 #include "qwen3_slim_moe_causallm.h"
+#include "xlm_roberta.h"
 #include <sys/resource.h>
 
 #include <atomic>
@@ -105,66 +106,69 @@ int main(int argc, char *argv[]) {
 
   /** Register all runnable causallm models to factory */
   causallm::Factory::Instance().registerModel(
-    "LlamaForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
-      return std::make_unique<causallm::CausalLM>(cfg, generation_cfg,
-                                                  nntr_cfg);
-    });
-//   causallm::Factory::Instance().registerModel(
-//     "Qwen3ForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::Qwen3CausalLM>(cfg, generation_cfg,
-//                                                        nntr_cfg);
-//     });
-//   causallm::Factory::Instance().registerModel(
-//     "Qwen3MoeForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::Qwen3MoECausalLM>(cfg, generation_cfg,
-//                                                           nntr_cfg);
-//     });
-//   causallm::Factory::Instance().registerModel(
-//     "Qwen3SlimMoeForCausalLM",
-//     [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::Qwen3SlimMoECausalLM>(
-//         cfg, generation_cfg, nntr_cfg);
-//     });
-//   causallm::Factory::Instance().registerModel(
-//     "Qwen3CachedSlimMoeForCausalLM",
-//     [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::Qwen3CachedSlimMoECausalLM>(
-//         cfg, generation_cfg, nntr_cfg);
-//     });
-//   causallm::Factory::Instance().registerModel(
-//     "GptOssForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::GptOssForCausalLM>(cfg, generation_cfg,
-//                                                            nntr_cfg);
-//     });
-//   causallm::Factory::Instance().registerModel(
-//     "GptOssCachedSlimCausalLM",
-//     [](json cfg, json generation_cfg, json nntr_cfg) {
-//       return std::make_unique<causallm::GptOssCachedSlimCausalLM>(
-//         cfg, generation_cfg, nntr_cfg);
-//     });
+      "LlamaForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg)
+      { return std::make_unique<causallm::CausalLM>(cfg, generation_cfg,
+                                                    nntr_cfg); });
+  causallm::Factory::Instance().registerModel(
+      "XLMRobertaForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg)
+      { return std::make_unique<xlmroberta::XLMRoberta>(cfg, generation_cfg,
+                                                        nntr_cfg); });
+  //   causallm::Factory::Instance().registerModel(
+  //     "Qwen3ForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::Qwen3CausalLM>(cfg, generation_cfg,
+  //                                                        nntr_cfg);
+  //     });
+  //   causallm::Factory::Instance().registerModel(
+  //     "Qwen3MoeForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::Qwen3MoECausalLM>(cfg, generation_cfg,
+  //                                                           nntr_cfg);
+  //     });
+  //   causallm::Factory::Instance().registerModel(
+  //     "Qwen3SlimMoeForCausalLM",
+  //     [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::Qwen3SlimMoECausalLM>(
+  //         cfg, generation_cfg, nntr_cfg);
+  //     });
+  //   causallm::Factory::Instance().registerModel(
+  //     "Qwen3CachedSlimMoeForCausalLM",
+  //     [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::Qwen3CachedSlimMoECausalLM>(
+  //         cfg, generation_cfg, nntr_cfg);
+  //     });
+  //   causallm::Factory::Instance().registerModel(
+  //     "GptOssForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::GptOssForCausalLM>(cfg, generation_cfg,
+  //                                                            nntr_cfg);
+  //     });
+  //   causallm::Factory::Instance().registerModel(
+  //     "GptOssCachedSlimCausalLM",
+  //     [](json cfg, json generation_cfg, json nntr_cfg) {
+  //       return std::make_unique<causallm::GptOssCachedSlimCausalLM>(
+  //         cfg, generation_cfg, nntr_cfg);
+  //     });
 
-//   // Validate arguments
-//   if (argc < 2) {
-//     std::cerr << "Usage: " << argv[0] << " <model_path> [input_prompt]\n"
-//               << "  <model_path>   : Path to model directory\n"
-//               << "  [input_prompt] : Optional input text (uses sample_input if "
-//                  "omitted)\n";
-//     return EXIT_FAILURE;
-//   }
+  // Validate arguments
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " <model_path> [input_prompt]\n"
+              << "  <model_path>   : Path to model directory\n"
+              << "  [input_prompt] : Optional input text (uses sample_input if "
+                 "omitted)\n";
+    return EXIT_FAILURE;
+  }
 
-//   const std::string model_path = argv[1];
-//   std::string input_text;
-//   std::string system_head_prompt = "";
-//   std::string system_tail_prompt = "";
+  const std::string model_path = argv[1];
+  std::string input_text;
+  std::string system_head_prompt = "";
+  std::string system_tail_prompt = "";
 
-//   std::cout << model_path << std::endl;
+  std::cout << model_path << std::endl;
 
-//   try {
-//     // Load configuration files
-//     json cfg = causallm::LoadJsonFile(model_path + "/config.json");
-//     json generation_cfg =
-//       causallm::LoadJsonFile(model_path + "/generation_config.json");
-//     json nntr_cfg = causallm::LoadJsonFile(model_path + "/nntr_config.json");
+  try {
+    // Load configuration files
+    json cfg = causallm::LoadJsonFile(model_path + "/config.json");
+    json generation_cfg =
+      causallm::LoadJsonFile(model_path + "/generation_config.json");
+    json nntr_cfg = causallm::LoadJsonFile(model_path + "/nntr_config.json");
 
 //     // Determine input text
 //     if (argc >= 3) {
@@ -187,9 +191,9 @@ int main(int argc, char *argv[]) {
 //     std::cout << weight_file << std::endl;
 
 //     // Initialize and run model
-//     auto model = causallm::Factory::Instance().create(
-//       cfg["architectures"].get<std::vector<std::string>>()[0], cfg,
-//       generation_cfg, nntr_cfg);
+    auto model = causallm::Factory::Instance().create(
+      cfg["architectures"].get<std::vector<std::string>>()[0], cfg,
+      generation_cfg, nntr_cfg);
 //     model->initialize();
 //     model->load_weight(weight_file);
 
@@ -208,10 +212,10 @@ int main(int argc, char *argv[]) {
 // #endif
 //     printMemoryUsage();
 
-//   } catch (const std::exception &e) {
-//     std::cerr << "\n[!] FATAL ERROR: " << e.what() << "\n";
-//     return EXIT_FAILURE;
-//   }
+  } catch (const std::exception &e) {
+    std::cerr << "\n[!] FATAL ERROR: " << e.what() << "\n";
+    return EXIT_FAILURE;
+  }
 
 //   return EXIT_SUCCESS;
 }
