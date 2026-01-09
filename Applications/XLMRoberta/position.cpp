@@ -17,25 +17,15 @@
 #include <vector>
 
 #include "position.h"
+#include "util.h"
 
 namespace xlmroberta {
 
 static constexpr size_t SINGLE_INOUT_IDX = 0;
+static constexpr int PAD_TOKEN_ID = 1;
 
 void Position::finalize(nntrainer::InitLayerContext &context) {
-  std::vector<nntrainer::TensorDim> dim = context.getInputDimensions();
-
-  for (unsigned int i = 0; i < dim.size(); ++i) {
-    if (dim[i].getDataLen() == 0) {
-      throw std::invalid_argument("Input dimension is not set");
-    } else {
-      dim[i].channel(dim[i].channel());
-      dim[i].height(dim[i].height());
-      dim[i].width(dim[i].width());
-    }
-  }
-
-  context.setOutputDimensions(dim);
+  context.setOutputDimensions(context.getInputDimensions());
 }
 
 void Position::calcDerivative(nntrainer::RunLayerContext &context) {
@@ -51,25 +41,9 @@ void Position::forwarding(nntrainer::RunLayerContext &context,
   // Get output tensor (position_ids)
   nntrainer::Tensor &position_ids = context.getOutput(SINGLE_INOUT_IDX);
 
-  // Get tensor dimensions
-  auto input_dim = input_ids.getDim();
-  unsigned int batch_size = input_dim.batch();
-  unsigned int seq_length = input_dim.width();
-
-  // Assuming padding_idx is 1 (common default)
-  int padding_idx = 1;
-
-  // Create position_ids from input_ids
-  for (unsigned int b = 0; b < batch_size; ++b) {
-    for (unsigned int i = 0; i < seq_length; ++i) {
-      int token_id = static_cast<int>(input_ids.getValue(b, 0, 0, i));
-      if (token_id != padding_idx) {
-        position_ids.setValue(b, 0, 0, i, static_cast<float>(padding_idx + 1 + i));
-      } else {
-        position_ids.setValue(b, 0, 0, i, static_cast<float>(0));
-      }
-    }
-  }
+  // Create position IDs using utility function
+  // pad_token_id is 1 (hardcoded as requested)
+  createPositionIdsFromInputIds(input_ids, position_ids, PAD_TOKEN_ID);
 }
 
 #ifdef PLUGGABLE

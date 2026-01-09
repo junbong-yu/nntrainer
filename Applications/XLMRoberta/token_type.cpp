@@ -17,25 +17,14 @@
 #include <vector>
 
 #include "token_type.h"
+#include "util.h"
 
 namespace xlmroberta {
 
 static constexpr size_t SINGLE_INOUT_IDX = 0;
 
 void TokenType::finalize(nntrainer::InitLayerContext &context) {
-  std::vector<nntrainer::TensorDim> dim = context.getInputDimensions();
-
-  for (unsigned int i = 0; i < dim.size(); ++i) {
-    if (dim[i].getDataLen() == 0) {
-      throw std::invalid_argument("Input dimension is not set");
-    } else {
-      dim[i].channel(dim[i].channel());
-      dim[i].height(dim[i].height());
-      dim[i].width(dim[i].width());
-    }
-  }
-
-  context.setOutputDimensions(dim);
+  context.setOutputDimensions(context.getInputDimensions());
 }
 
 void TokenType::calcDerivative(nntrainer::RunLayerContext &context) {
@@ -51,35 +40,18 @@ void TokenType::forwarding(nntrainer::RunLayerContext &context,
   // Get output tensor (token_type_ids)
   nntrainer::Tensor &token_type_ids = context.getOutput(SINGLE_INOUT_IDX);
 
-  // Get tensor dimensions
-  auto input_dim = input_ids.getDim();
-  unsigned int batch_size = input_dim.batch();
-  unsigned int seq_length = input_dim.width();
+  // For XLM-RoBERTa, token_type_ids are typically all zeros since it processes
+  // single sentences. We follow the same approach as the Python implementation
+  // by creating position_ids first and then setting all token_type_ids to 0.
 
-  // First create position_ids from input_ids
-  nntrainer::Tensor position_ids(input_dim);
+  // Create temporary position_ids tensor with same dimensions as input
+  nntrainer::Tensor position_ids(input_ids.getDim());
 
-  // Assuming padding_idx is 1 (common default)
-  int padding_idx = 1;
+  // Generate position_ids from input_ids
+  createPositionIdsFromInputIds(input_ids, position_ids, 1);
 
-  // Create position_ids from input_ids
-  for (unsigned int b = 0; b < batch_size; ++b) {
-    for (unsigned int i = 0; i < seq_length; ++i) {
-      int token_id = static_cast<int>(input_ids.getValue(b, 0, 0, i));
-      if (token_id != padding_idx) {
-        position_ids.setValue(b, 0, 0, i, static_cast<float>(padding_idx + 1 + i));
-      } else {
-        position_ids.setValue(b, 0, 0, i, static_cast<float>(0));
-      }
-    }
-  }
-
-  // Create token_type_ids (all zeros as in the Python code when token_type_ids is None)
-  for (unsigned int b = 0; b < batch_size; ++b) {
-    for (unsigned int i = 0; i < seq_length; ++i) {
-      token_type_ids.setValue(b, 0, 0, i, static_cast<float>(0));
-    }
-  }
+  // Set all token_type_ids to 0 (following XLM-RoBERTa convention for single sentences)
+  token_type_ids.setValue(0);
 }
 
 #ifdef PLUGGABLE
