@@ -1,6 +1,9 @@
 # Source files for XLMRoberta application
 executable_src = [
     meson.current_source_dir() / 'main.cpp',
+    meson.current_source_dir() / 'xlm_roberta.cpp',
+    meson.current_source_dir() / 'position.cpp',
+    meson.current_source_dir() / 'token_type.cpp',
 ]
 
 # Include directories
@@ -16,13 +19,8 @@ e = executable('nntr_xmlroberta',
         nntrainer_dep,
         nntrainer_ccapi_dep,
         # CausalLM dependencies - these are defined in Applications/CausalLM
-        causallm_rms_norm_dep,
-        causallm_tie_word_embedding_dep,
-        causallm_swiglu_dep,
         causallm_mha_core_dep,
         causallm_embedding_layer_dep,
-        causallm_reshaped_rms_norm_dep,
-        causallm_qkv_layer_dep,
         # CausalLM shared library dependency
         causallm_dep
     ],

@@ -57,8 +57,8 @@ if get_option('enable-transformer')
   endif
   if (get_option('platform') != 'tizen') and (get_option('platform') != 'windows')
     subdir('CausalLM')
+    subdir('XLMRoberta')
   endif
 endif
 
 subdir('Optimizers/jni')
-subdir('XLMRoberta')
