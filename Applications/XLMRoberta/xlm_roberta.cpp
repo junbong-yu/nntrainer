@@ -153,6 +153,13 @@ namespace xlmroberta
         {withKey("name", "embedding0_addition0"),
          withKey("input_layers", "addition,embedding0_position_embedding")}));
 
+    layers.push_back(createLayer(
+        "layer_normalization",
+        {"name=embedding0_layer_norm",
+         "axis=3",
+         "epsilon=1e-5",
+         "input_layer=addition"}));
+
     // create transformer layers
     for (int i = 0; i < NUM_LAYERS; ++i)
     {
