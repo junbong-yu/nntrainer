@@ -4,6 +4,7 @@ executable_src = [
     meson.current_source_dir() / 'xlm_roberta.cpp',
     meson.current_source_dir() / 'position.cpp',
     meson.current_source_dir() / 'token_type.cpp',
+    meson.current_source_dir() / 'util.cpp',
 ]
 
 # Include directories

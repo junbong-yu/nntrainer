@@ -141,6 +141,18 @@ namespace xlmroberta
          "out_dim=" + std::to_string(DIM),
          "input_layer=token_type"}));
 
+    // addition0: embeddings = inputs_embeds + token_type_embeddings
+    layers.push_back(createLayer(
+        "addition",
+        {withKey("name", "embedding0_addition0"),
+         withKey("input_layers", "embedding0_word_embedding,embedding0_token_type_embedding")}));
+
+    // addition1: embeddings + position_embeddings
+    layers.push_back(createLayer(
+        "addition",
+        {withKey("name", "embedding0_addition0"),
+         withKey("input_layers", "addition,embedding0_position_embedding")}));
+
     // create transformer layers
     for (int i = 0; i < NUM_LAYERS; ++i)
     {
