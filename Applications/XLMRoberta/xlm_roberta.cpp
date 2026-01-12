@@ -28,6 +28,8 @@
 #include <common.h>
 #include <layer_context.h>
 #include <mha_core.h>
+#include <embedding_layer.h>
+
 #include <tensor.h>
 #include <engine.h>
 #include <app_context.h>
@@ -42,6 +44,29 @@ using causallm::ModelType;
 
 namespace xlmroberta
 {
+  static const bool debug = true; // Set to false to disable debugging
+
+  // Helper function to extract and print input_layers parameter
+  void printInputLayers(const std::vector<std::string> &params, const std::string &layer_type)
+  {
+    if (!debug)
+      return;
+
+    for (const auto &param : params)
+    {
+      if (param.find("input_layers=") == 0)
+      {
+        std::cout << "[DEBUG] " << layer_type << " input_layers: " << param.substr(12) << std::endl;
+        break;
+      }
+      else if (param.find("input_layers") != std::string::npos && param.find("=") != std::string::npos)
+      {
+        size_t pos = param.find("=");
+        std::cout << "[DEBUG] " << layer_type << " input_layers: " << param.substr(pos + 1) << std::endl;
+        break;
+      }
+    }
+  }
 
   XLMRoberta::XLMRoberta(causallm::json &cfg, causallm::json &generation_cfg, causallm::json &nntr_cfg)
       : causallm::Embedding(cfg, generation_cfg, nntr_cfg)
@@ -49,8 +74,359 @@ namespace xlmroberta
     setupParameters(cfg, generation_cfg, nntr_cfg);
   }
 
+  //   void XLMRoberta::initialize() {
+
+  //   // RegisterCustomLayers
+  //   XLMRoberta::registerCustomLayers();
+
+  //   // construct causalLM model
+  //   constructModel();
+
+  //   // setup model property
+  //   std::vector<std::string> model_props = {
+  //     withKey("batch_size", BATCH_SIZE), withKey("epochs", "1"),
+  //     withKey("model_tensor_type", MODEL_TENSOR_TYPE)};
+  //   if (MEMORY_SWAP) {
+  //     model_props.emplace_back(withKey("fsu", "true"));
+  //     model_props.emplace_back(withKey("fsu_lookahead", FSU_LOOKAHEAD));
+  //   }
+
+  //   model->setProperty(model_props);
+
+  //   if (model->compile(ml::train::ExecutionMode::INFERENCE)) {
+  //     throw std::invalid_argument("Model compilation failed.");
+  //   }
+
+  //   if (model->initialize(ml::train::ExecutionMode::INFERENCE)) {
+  //     throw std::invalid_argument("Model initialization failed.");
+  //   }
+
+  //   is_initialized = true;
+
+  // #ifdef DEBUG
+  //   model->summarize(std::cout, ML_TRAIN_SUMMARY_MODEL);
+  // #endif
+  // }
+
+  void XLMRoberta::setupParameters(json &cfg, json &generation_cfg,
+                                   json &nntr_cfg)
+  {
+    Embedding::setupParameters(cfg, generation_cfg, nntr_cfg);
+
+    HIDDEN_ACT = cfg["hidden_act"];
+
+    // /** Initialize nntr prameters */
+    // BATCH_SIZE = nntr_cfg["batch_size"].get<unsigned int>();
+    // MODEL_TENSOR_TYPE = nntr_cfg["model_tensor_type"].get<std::string>();
+    // INIT_SEQ_LEN = nntr_cfg["init_seq_len"];
+    // MAX_SEQ_LEN = nntr_cfg["max_seq_len"];
+    // NUM_TO_GENERATE = nntr_cfg["num_to_generate"];
+    // MODEL_TENSOR_TYPE = nntr_cfg["model_tensor_type"];
+    // MEMORY_SWAP = nntr_cfg.contains("fsu") ? nntr_cfg["fsu"].get<bool>() : false;
+    // FSU_LOOKAHEAD = nntr_cfg.contains("fsu_lookahead")
+    //                     ? nntr_cfg["fsu_lookahead"].get<unsigned int>()
+    //                     : 1;
+    // EMBEDDING_DTYPE = nntr_cfg["embedding_dtype"];
+    // FC_LAYER_DTYPE = nntr_cfg["fc_layer_dtype"];
+
+    // /** Initialize model parameters */
+    // NUM_VOCAB = cfg["vocab_size"];
+    // DIM = cfg["hidden_size"];
+    // INTERMEDIATE_SIZE = cfg["intermediate_size"];
+    // NUM_LAYERS = cfg["num_hidden_layers"];
+    // NUM_HEADS = cfg["num_attention_heads"];
+    // HEAD_DIM = cfg.contains("head_dim")
+    //                ? cfg["head_dim"].get<int>()
+    //                : DIM / NUM_HEADS; // default value is hidden_size / num_heads
+    // NUM_KEY_VALUE_HEADS = cfg.contains("num_key_value_heads")
+    //                           ? cfg["num_key_value_heads"].get<int>()
+    //                           : NUM_HEADS;
+    // SLIDING_WINDOW =
+    //     cfg.contains("sliding_window") && !cfg["sliding_window"].is_null()
+    //         ? cfg["sliding_window"].get<unsigned int>()
+    //         : UINT_MAX;
+    // SLIDING_WINDOW_PATTERN = cfg.contains("sliding_window_pattern")
+    //                              ? cfg["sliding_window_pattern"].get<unsigned int>()
+    //                              : 1;
+    // MAX_POSITION_EMBEDDINGS = cfg["max_position_embeddings"].get<unsigned int>();
+    // // ROPE_THETA = cfg["rope_theta"].get<unsigned int>();
+    // // TIE_WORD_EMBEDDINGS = cfg["tie_word_embeddings"].get<bool>();
+    // // NORM_EPS = cfg["rms_norm_eps"];
+    // GQA_SIZE = NUM_HEADS / NUM_KEY_VALUE_HEADS;
+
+    return;
+  };
+
+  void XLMRoberta::constructXLMRobertaPooler()
+  {
+    std::vector<LayerHandle> layers;
+
+    // add created layers into the model
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
+  void XLMRoberta::registerCustomLayers()
+  {
+    const auto &ct_engine = nntrainer::Engine::Global();
+    const auto app_context =
+        static_cast<nntrainer::AppContext *>(ct_engine.getRegisteredContext("cpu"));
+
+    try
+    {
+      // roberta custom layers
+      app_context->registerFactory(nntrainer::createLayer<xlmroberta::Position>);
+      app_context->registerFactory(nntrainer::createLayer<xlmroberta::TokenType>);
+
+      // causallm custom layers
+      app_context->registerFactory(nntrainer::createLayer<causallm::EmbeddingLayer>);
+      app_context->registerFactory(nntrainer::createLayer<causallm::MHACoreLayer>);
+    }
+    catch (std::invalid_argument &e)
+    {
+      std::cerr << "failed to register factory, reason: " << e.what()
+                << std::endl;
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaOutput(int layer_id, std::string input_name)
+  {
+    std::vector<LayerHandle> layers;
+
+    // Create output dense layer
+    std::vector<std::string> output_param = {
+        withKey("name", "layer" + std::to_string(layer_id) + "_output_dense"),
+        withKey("unit", DIM),
+        withKey("input_layers", input_name),
+        withKey("weight_initializer", "xavier_uniform"),
+        withKey("bias_initializer", "zeros")};
+
+    printInputLayers(output_param, "layer" + std::to_string(layer_id) + "_output_dense");
+    layers.push_back(createLayer("fully_connected", output_param));
+
+    // Add layer normalization
+    std::vector<std::string> norm_param = {
+        withKey("name", "layer" + std::to_string(layer_id) + "_output_layer_norm"),
+        withKey("axis", "3"),
+        withKey("epsilon", "1e-5"),
+        withKey("input_layers", "layer" + std::to_string(layer_id) + "_output_dense," +
+                                    (layer_id == 0 ? "embedding0_layer_norm" : "layer" + std::to_string(layer_id - 1) + "_output"))};
+
+    printInputLayers(norm_param, "layer" + std::to_string(layer_id) + "_output_layer_norm");
+    layers.push_back(createLayer("layer_normalization", norm_param));
+
+    // add created layers into the model
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaIntermediate(int layer_id, std::string input_name)
+  {
+    std::vector<LayerHandle> layers;
+
+    // Create intermediate dense layer
+    std::vector<std::string> intermediate_param = {
+        withKey("name", "layer" + std::to_string(layer_id) + "_intermediate_dense"),
+        withKey("unit", INTERMEDIATE_SIZE),
+        withKey("input_layers", input_name),
+        withKey("weight_initializer", "xavier_uniform"),
+        withKey("bias_initializer", "zeros")};
+
+    printInputLayers(intermediate_param, "layer" + std::to_string(layer_id) + "_intermediate_dense");
+    layers.push_back(createLayer("fully_connected", intermediate_param));
+
+    // Add activation layer (GELU)
+    std::vector<std::string> activation_param = {
+        withKey("name", "layer" + std::to_string(layer_id) + "_intermediate_act"),
+        withKey("input_layers", "layer" + std::to_string(layer_id) + "_intermediate_dense"),
+        withKey("activation", "gelu")};
+
+    printInputLayers(activation_param, "layer" + std::to_string(layer_id) + "_intermediate_act");
+    layers.push_back(createLayer("activation", activation_param));
+
+    // add created layers into the model
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaSelfOutput(int layer_id, std::string input_name)
+  {
+    std::vector<LayerHandle> layers;
+
+    std::vector<std::string> output_param = {
+        withKey("name", "encoder" + std::to_string(layer_id) + "attention_output_dense"),
+        withKey("unit", DIM),
+        withKey("disable_bias", "true"),
+        withKey("input_layers", input_name),
+        withKey("weight_initializer", "ones")};
+
+    printInputLayers(output_param, "encoder" + std::to_string(layer_id) + "attention_output_dense");
+    layers.push_back(createLayer("fully_connected", output_param));
+
+    // add created layers into the model
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaSelfAttention(int layer_id, std::string input_name)
+  {
+    std::vector<LayerHandle> layers;
+
+    // create transformer layers
+
+    std::vector<LayerHandle> self_attn;
+
+    self_attn = createAttention(layer_id, INIT_SEQ_LEN, NUM_HEADS, HEAD_DIM,
+                                input_name,  // Use the input_name for query
+                                input_name,  // Use the input_name for key
+                                input_name); // Use the input_name for value
+
+    layers.insert(layers.end(), self_attn.begin(), self_attn.end());
+
+    // add created layers into the model
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaAttention(int layer_id, std::string input_name)
+  {
+    constructXLMRobertaSelfAttention(layer_id, input_name);
+    constructXLMRobertaSelfOutput(layer_id, input_name);
+  }
+
+  void XLMRoberta::constructXLMRobertaLayer()
+  {
+    std::string input_name = "embedding0_layer_norm"; // Start with embedding output
+
+    for (int i = 0; i < NUM_LAYERS; ++i)
+    {
+      // Construct attention sub-layer
+      constructXLMRobertaAttention(i, input_name);
+
+      // Update input_name to the output of attention
+      input_name = "encoder" + std::to_string(i) + "attention_output_dense";
+
+      // Construct intermediate sub-layer
+      constructXLMRobertaIntermediate(i, input_name);
+
+      // Update input_name to the output of intermediate
+      input_name = "layer" + std::to_string(i) + "_intermediate_output";
+
+      // Construct output sub-layer
+      constructXLMRobertaOutput(i, input_name);
+
+      // Update input_name to the final output of this layer
+      input_name = "layer" + std::to_string(i) + "_output_layer_norm";
+    }
+  }
+
+  void XLMRoberta::constructXLMRobertaEncoder()
+  {
+    constructXLMRobertaLayer();
+  }
+
+  void XLMRoberta::constructXLMRobertaEmbeddings()
+  {
+    std::vector<LayerHandle> layers;
+
+    // create input layer
+    std::vector<std::string> input_params = {withKey("name", "input0"),
+                                             withKey("input_shape", "1:1:" + std::to_string(INIT_SEQ_LEN))};
+    printInputLayers(input_params, "input");
+    layers.push_back(createLayer("input", input_params));
+
+    // create embedding layer
+    const std::string embedding_type =
+        TIE_WORD_EMBEDDINGS ? "tie_word_embeddings" : "embedding_layer";
+
+    // Custom: position_ids
+    std::vector<std::string> position_params = {
+        "name=position",
+        "weight_dtype=" + EMBEDDING_DTYPE,
+        "out_dim=" + std::to_string(DIM),
+        "input_layers=input0"};
+    printInputLayers(position_params, "position");
+    layers.push_back(createLayer("position", position_params));
+
+    // Custom: token_type_ids
+    std::vector<std::string> token_type_params = {
+        "name=token_type",
+        "weight_dtype=" + EMBEDDING_DTYPE,
+        "out_dim=" + std::to_string(DIM),
+        "input_layers=input0"};
+    printInputLayers(token_type_params, "token_type");
+    layers.push_back(createLayer("token_type", token_type_params));
+
+    // embedding0: word_embedding
+    std::vector<std::string> word_embedding_params = {
+        "name=embedding0_word_embedding",
+        "in_dim=" + std::to_string(NUM_VOCAB),
+        "weight_dtype=" + EMBEDDING_DTYPE,
+        "out_dim=" + std::to_string(DIM),
+        "input_layers=input0"};
+    printInputLayers(word_embedding_params, "embedding0_word_embedding");
+    layers.push_back(createLayer(embedding_type, word_embedding_params));
+
+    // embedding0: position_embedding
+    std::vector<std::string> position_embedding_params = {
+        "name=embedding0_position_embedding",
+        "in_dim=" + std::to_string(NUM_VOCAB),
+        "weight_dtype=" + EMBEDDING_DTYPE,
+        "out_dim=" + std::to_string(DIM),
+        "input_layers=position"};
+    printInputLayers(position_embedding_params, "embedding0_position_embedding");
+    layers.push_back(createLayer(embedding_type, position_embedding_params));
+
+    // embedding0: token_type_embedding
+    std::vector<std::string> token_type_embedding_params = {
+        "name=embedding0_token_type_embedding",
+        "in_dim=" + std::to_string(NUM_VOCAB),
+        "weight_dtype=" + EMBEDDING_DTYPE,
+        "out_dim=" + std::to_string(DIM),
+        "input_layers=token_type"};
+    printInputLayers(token_type_embedding_params, "embedding0_token_type_embedding");
+    layers.push_back(createLayer(embedding_type, token_type_embedding_params));
+
+    // addition0: embeddings = inputs_embeds + token_type_embeddings
+    std::vector<std::string> addition0_params = {withKey("name", "embedding0_addition0"),
+                                                 withKey("input_layers", "embedding0_word_embedding,embedding0_token_type_embedding")};
+    printInputLayers(addition0_params, "embedding0_addition0");
+    layers.push_back(createLayer("addition", addition0_params));
+
+    // addition1: embeddings + position_embeddings
+    std::vector<std::string> addition1_params = {withKey("name", "embedding0_addition1"),
+                                                 withKey("input_layers", "embedding0_addition0,embedding0_position_embedding")};
+    printInputLayers(addition1_params, "embedding0_addition1");
+    layers.push_back(createLayer("addition", addition1_params));
+
+    std::vector<std::string> layer_norm_params = {"name=embedding0_layer_norm",
+                                                  "axis=3",
+                                                  "epsilon=1e-5",
+                                                  "input_layers=embedding0_addition1"};
+    printInputLayers(layer_norm_params, "embedding0_layer_norm");
+    layers.push_back(createLayer("layer_normalization", layer_norm_params));
+
+    for (auto &layer : layers)
+    {
+      model->addLayer(layer);
+    }
+  }
+
   void XLMRoberta::constructModel()
   {
+    // create model
+    model = ml::train::createModel(ml::train::ModelType::NEURAL_NET);
+
     for (auto &module : modules)
     {
       if (!module.contains("type"))
@@ -62,7 +438,9 @@ namespace xlmroberta
 
       if (component == "Transformer")
       {
-        constructXLMRobertaModel();
+        constructXLMRobertaEmbeddings();
+        // constructXLMRobertaEncoder();
+        // constructXLMRobertaPooler();
       }
       else
       {
@@ -70,7 +448,7 @@ namespace xlmroberta
         {
           int idx = module["idx"].get<int>();
           // Add module layer using properties from loaded config
-          addModule(type, idx);
+          // addModule(type, idx);
         }
         else
         {
@@ -78,113 +456,6 @@ namespace xlmroberta
                     << type << std::endl;
         }
       }
-    }
-  }
-
-  void XLMRoberta::constructXLMRobertaModel()
-  {
-
-    std::vector<LayerHandle> layers;
-
-    // create model
-    model = ml::train::createModel(ml::train::ModelType::NEURAL_NET);
-
-    // create input layer
-    layers.push_back(createLayer(
-        "input", {withKey("name", "input0"),
-                  withKey("input_shape", "1:1:" + std::to_string(INIT_SEQ_LEN))}));
-
-    // create embedding layer
-    const std::string embedding_type =
-        TIE_WORD_EMBEDDINGS ? "tie_word_embeddings" : "embedding_layer";
-
-    // Custom: position_ids
-    layers.push_back(createLayer(
-        "position",
-        {"name=position",
-         "weight_dtype=" + EMBEDDING_DTYPE,
-         "out_dim=" + std::to_string(DIM),
-         "input_layer=input0"}));
-
-    // Custom: token_type_ids
-    layers.push_back(createLayer(
-        "token_type",
-        {"name=token_type",
-         "weight_dtype=" + EMBEDDING_DTYPE,
-         "out_dim=" + std::to_string(DIM),
-         "input_layer=input0"}));
-
-    // embedding0: word_embedding
-    layers.push_back(createLayer(
-        embedding_type,
-        {"name=embedding0_word_embedding",
-         "in_dim=" + std::to_string(NUM_VOCAB),
-         "weight_dtype=" + EMBEDDING_DTYPE,
-         "out_dim=" + std::to_string(DIM),
-         "input_layer=input0"}));
-
-    // embedding0: position_embedding
-    layers.push_back(createLayer(
-        embedding_type,
-        {"name=embedding0_position_embedding",
-         "in_dim=" + std::to_string(NUM_VOCAB),
-         "weight_dtype=" + EMBEDDING_DTYPE,
-         "out_dim=" + std::to_string(DIM),
-         "input_layer=position"}));
-
-    // embedding0: token_type_embedding
-    layers.push_back(createLayer(
-        embedding_type,
-        {"name=embedding0_token_type_embedding",
-         "in_dim=" + std::to_string(NUM_VOCAB),
-         "weight_dtype=" + EMBEDDING_DTYPE,
-         "out_dim=" + std::to_string(DIM),
-         "input_layer=token_type"}));
-
-    // addition0: embeddings = inputs_embeds + token_type_embeddings
-    layers.push_back(createLayer(
-        "addition",
-        {withKey("name", "embedding0_addition0"),
-         withKey("input_layers", "embedding0_word_embedding,embedding0_token_type_embedding")}));
-
-    // addition1: embeddings + position_embeddings
-    layers.push_back(createLayer(
-        "addition",
-        {withKey("name", "embedding0_addition0"),
-         withKey("input_layers", "addition,embedding0_position_embedding")}));
-
-    layers.push_back(createLayer(
-        "layer_normalization",
-        {"name=embedding0_layer_norm",
-         "axis=3",
-         "epsilon=1e-5",
-         "input_layer=addition"}));
-
-    // create transformer layers
-    for (int i = 0; i < NUM_LAYERS; ++i)
-    {
-      std::vector<LayerHandle> transformer;
-      if (i == 0)
-        transformer = createTransformerDecoderBlock(0, "embedding0");
-      else
-        transformer = createTransformerDecoderBlock(
-            i, "layer" + std::to_string(i - 1) + "_decoder_output");
-      layers.insert(layers.end(), transformer.begin(), transformer.end());
-    }
-
-    // create rms_norm
-    layers.push_back(createLayer(
-        "rms_norm",
-        {withKey("name", "output_norm"),
-         withKey("epsilon", std::to_string(NORM_EPS)),
-         withKey("input_layers",
-                 "layer" + std::to_string(NUM_LAYERS - 1) + "_decoder_output"),
-         withKey("packed", "false")}));
-
-    // add created layers into the model
-    for (auto &layer : layers)
-    {
-      model->addLayer(layer);
     }
   }
 

@@ -28,6 +28,14 @@ namespace xlmroberta
   {
 
   public:
+    // void initialize();
+    static constexpr const char *architectures = "XLMRobertaModel";
+    std::string HIDDEN_ACT;
+
+    void registerCustomLayers();
+
+    void setupParameters(causallm::json &cfg, causallm::json &generation_cfg, causallm::json &nntr_cfg);
+
     /**
      * @brief Construct a new XLMRoberta object
      * @param cfg Configuration for the model (config.json)
@@ -47,9 +55,19 @@ namespace xlmroberta
      */
     void constructModel();
 
-    void constructXLMRobertaModel();
-  };
+  private:
+    void constructXLMRobertaEmbeddings();
 
+    void constructXLMRobertaEncoder();
+    void constructXLMRobertaLayer();                                             // x24 times
+    void constructXLMRobertaAttention(int layer_id, std::string input_name);     // #1
+    void constructXLMRobertaSelfAttention(int layer_id, std::string input_name); // #1-1
+    void constructXLMRobertaSelfOutput(int layer_id, std::string input_name);    // #1-2
+    void constructXLMRobertaIntermediate(int layer_id, std::string input_name);  // #2
+    void constructXLMRobertaOutput(int layer_id, std::string input_name);        // #3
+
+    void constructXLMRobertaPooler();
+  };
 } // namespace xlmroberta
 
 #endif
