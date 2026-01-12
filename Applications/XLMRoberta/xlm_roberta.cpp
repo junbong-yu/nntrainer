@@ -235,7 +235,6 @@ namespace xlmroberta
         withKey("input_layers", input_name),
         withKey("weight_initializer", "xavier_uniform"),
         withKey("bias_initializer", "zeros")};
-
     printInputLayers(intermediate_param, "layer" + std::to_string(layer_id) + "_intermediate_dense");
     layers.push_back(createLayer("fully_connected", intermediate_param));
 
@@ -244,7 +243,6 @@ namespace xlmroberta
         withKey("name", "layer" + std::to_string(layer_id) + "_intermediate_act"),
         withKey("input_layers", "layer" + std::to_string(layer_id) + "_intermediate_dense"),
         withKey("activation", "gelu")};
-
     printInputLayers(activation_param, "layer" + std::to_string(layer_id) + "_intermediate_act");
     layers.push_back(createLayer("activation", activation_param));
 
@@ -260,13 +258,13 @@ namespace xlmroberta
     std::vector<LayerHandle> layers;
 
     std::vector<std::string> output_param = {
-        withKey("name", "encoder" + std::to_string(layer_id) + "attention_output_dense"),
+        withKey("name", "encoder" + std::to_string(layer_id) + "_attention_output_dense"),
         withKey("unit", DIM),
         withKey("disable_bias", "true"),
         withKey("input_layers", input_name),
         withKey("weight_initializer", "ones")};
 
-    printInputLayers(output_param, "encoder" + std::to_string(layer_id) + "attention_output_dense");
+    printInputLayers(output_param, "encoder" + std::to_string(layer_id) + "_attention_output_dense");
     layers.push_back(createLayer("fully_connected", output_param));
 
     // add created layers into the model
@@ -274,6 +272,55 @@ namespace xlmroberta
     {
       model->addLayer(layer);
     }
+  }
+
+  std::vector<LayerHandle>
+  XLMRoberta::createAttention(const int layer_id, int seq_len, int n_heads,
+                              int head_dim, std::string query_name,
+                              std::string key_name, std::string value_name)
+  {
+
+    std::vector<LayerHandle> layers;
+
+    auto Q = "encoder" + std::to_string(layer_id) + "_attention_self_wq";
+    auto K = "encoder" + std::to_string(layer_id) + "_attention_self_wk";
+    auto V = "encoder" + std::to_string(layer_id) + "_attention_self_wv";
+    auto A = "encoder" + std::to_string(layer_id) + "_attention_self_attention";
+
+    // V layer
+    std::vector<std::string> v_params = {
+        withKey("name", V), withKey("unit", head_dim * n_heads),
+        withKey("disable_bias", "false"), withKey("input_layers", value_name),
+        withKey("weight_initializer", "ones")};
+    printInputLayers(v_params, V);
+    layers.push_back(createLayer("fully_connected", v_params));
+
+    // K layer
+    std::vector<std::string> k_params = {
+        withKey("name", K), withKey("unit", head_dim * n_heads),
+        withKey("disable_bias", "false"), withKey("input_layers", key_name),
+        withKey("weight_initializer", "ones")};
+    printInputLayers(k_params, K);
+    layers.push_back(createLayer("fully_connected", k_params));
+
+    // Q layer
+    std::vector<std::string> q_params = {
+        withKey("name", Q), withKey("unit", head_dim * n_heads),
+        withKey("disable_bias", "false"), withKey("input_layers", query_name),
+        withKey("weight_initializer", "ones")};
+    printInputLayers(q_params, Q);
+    layers.push_back(createLayer("fully_connected", q_params));
+
+    // Attention core layer
+    std::vector<std::string> a_params = {
+        withKey("name", A),
+        withKey("num_heads", n_heads),
+        withKey("max_new_tokens", std::to_string(NUM_TO_GENERATE)),
+        withKey("input_layers", {Q, K, V})};
+    printInputLayers(a_params, A);
+    layers.push_back(createLayer("mha_core", a_params));
+
+    return layers;
   }
 
   void XLMRoberta::constructXLMRobertaSelfAttention(int layer_id, std::string input_name)
@@ -301,6 +348,7 @@ namespace xlmroberta
   void XLMRoberta::constructXLMRobertaAttention(int layer_id, std::string input_name)
   {
     constructXLMRobertaSelfAttention(layer_id, input_name);
+    input_name = "encoder" + std::to_string(layer_id) + "_attention_self_attention";
     constructXLMRobertaSelfOutput(layer_id, input_name);
   }
 
@@ -308,13 +356,14 @@ namespace xlmroberta
   {
     std::string input_name = "embedding0_layer_norm"; // Start with embedding output
 
-    for (int i = 0; i < NUM_LAYERS; ++i)
+    // for (int i = 0; i < NUM_LAYERS; ++i)
+    for (int i = 0; i < 2; ++i)
     {
       // Construct attention sub-layer
       constructXLMRobertaAttention(i, input_name);
 
       // Update input_name to the output of attention
-      input_name = "encoder" + std::to_string(i) + "attention_output_dense";
+      input_name = "encoder" + std::to_string(i) + "_attention_output_dense";
 
       // Construct intermediate sub-layer
       constructXLMRobertaIntermediate(i, input_name);
@@ -439,7 +488,7 @@ namespace xlmroberta
       if (component == "Transformer")
       {
         constructXLMRobertaEmbeddings();
-        // constructXLMRobertaEncoder();
+        constructXLMRobertaEncoder();
         // constructXLMRobertaPooler();
       }
       else

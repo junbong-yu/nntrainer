@@ -56,6 +56,10 @@ namespace xlmroberta
     void constructModel();
 
   private:
+    std::vector<causallm::LayerHandle> createAttention(const int layer_id, int seq_len, int n_heads,
+                              int head_dim, std::string query_name,
+                              std::string key_name, std::string value_name);
+
     void constructXLMRobertaEmbeddings();
 
     void constructXLMRobertaEncoder();

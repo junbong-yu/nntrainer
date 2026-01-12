@@ -160,11 +160,11 @@ void MHACoreLayer::finalize(nntrainer::InitLayerContext &context) {
     cache_value_dim, "cache_value", nntrainer::Initializer::NONE, false,
     nntrainer::TensorLifespan::MAX_LIFESPAN);
 
-  theta = (float)std::get<props::RopeTheta>(mha_core_props).get();
+  // theta = (float)std::get<props::RopeTheta>(mha_core_props).get();
 
-  /** precompute_freqs will be invoked only once */
-  if (freqs_cos == nullptr)
-    precompute_freqs(head_dim, max_position_embeddings, theta);
+  // /** precompute_freqs will be invoked only once */
+  // if (freqs_cos == nullptr)
+  //   precompute_freqs(head_dim, max_position_embeddings, theta);
 
   /** set Output dimension! - one output */
   std::vector<nntrainer::TensorDim> output_dims(1);
@@ -492,21 +492,21 @@ void MHACoreLayer::one_batch_incremental_forwarding(
     batch * cache_value_dim.getFeatureLen() + from * cache_value_dim.width(),
     true);
 
-  apply_rotary_emb_tensor_v2(query_step, query_step, head_dim, _from, false);
+//   apply_rotary_emb_tensor_v2(query_step, query_step, head_dim, _from, false);
 
-  apply_rotary_emb_tensor_v2(key_step, b_cache_key_step, head_dim, _from,
-                             false);
+//   apply_rotary_emb_tensor_v2(key_step, b_cache_key_step, head_dim, _from,
+//                              false);
 
-  if (query_step.getDataType() == ml::train::TensorDim::DataType::FP32) {
-    apply_rotary_emb_tensor_v2(value_step, b_cache_value_step, head_dim, _from,
-                               true);
-  } else if (query_step.getDataType() == ml::train::TensorDim::DataType::FP16) {
-#ifdef ENABLE_FP16
-    b_cache_value_step.copyData(value_step);
-#else
-    NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
-#endif
-  }
+//   if (query_step.getDataType() == ml::train::TensorDim::DataType::FP32) {
+//     apply_rotary_emb_tensor_v2(value_step, b_cache_value_step, head_dim, _from,
+//                                true);
+//   } else if (query_step.getDataType() == ml::train::TensorDim::DataType::FP16) {
+// #ifdef ENABLE_FP16
+//     b_cache_value_step.copyData(value_step);
+// #else
+//     NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
+// #endif
+//   }
 
   ml::train::TensorDim cached_key_dim = cache_key_dim;
   ml::train::TensorDim cached_value_dim = cache_value_dim;
@@ -1097,7 +1097,7 @@ void MHACoreLayer::updateTensorsByInputDimensions(
 #endif
   kv_cache_dim.height(max_timestep);
 
-  precompute_freqs(head_dim, max_position_embeddings, theta);
+  // precompute_freqs(head_dim, max_position_embeddings, theta);
 
   context.updateInput(INOUT_INDEX::QUERY, input_dimensions[0]);
   context.updateInput(INOUT_INDEX::KEY, kv_dim);
