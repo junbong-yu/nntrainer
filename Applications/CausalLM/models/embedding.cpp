@@ -34,7 +34,7 @@ void Embedding::setupParameters(json &cfg, json &generation_cfg,
   Transformer::setupParameters(cfg, generation_cfg, nntr_cfg);
 
   std::string modules_config_path = "modules.json";
-  if (nntr_cfg.contains("module_config_path")) {
+  if (nntr_cfg.contains("modules_config_path")) {
     modules_config_path = nntr_cfg["modules_config_path"].get<std::string>();
   } else {
     std::cout << "modules_config_path is not set. Using default: "
