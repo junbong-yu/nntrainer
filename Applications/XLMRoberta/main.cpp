@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
       { return std::make_unique<causallm::CausalLM>(cfg, generation_cfg,
                                                     nntr_cfg); });
   causallm::Factory::Instance().registerModel(
-      "XLMRobertaForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg)
+      "XLMRobertaModel", [](json cfg, json generation_cfg, json nntr_cfg)
       { return std::make_unique<xlmroberta::XLMRoberta>(cfg, generation_cfg,
                                                         nntr_cfg); });
   //   causallm::Factory::Instance().registerModel(
@@ -161,8 +161,6 @@ int main(int argc, char *argv[]) {
   std::string system_head_prompt = "";
   std::string system_tail_prompt = "";
 
-  std::cout << model_path << std::endl;
-
   try {
     // Load configuration files
     json cfg = causallm::LoadJsonFile(model_path + "/config.json");
@@ -194,7 +192,8 @@ int main(int argc, char *argv[]) {
     auto model = causallm::Factory::Instance().create(
       cfg["architectures"].get<std::vector<std::string>>()[0], cfg,
       generation_cfg, nntr_cfg);
-//     model->initialize();
+      
+    model->initialize();
 //     model->load_weight(weight_file);
 
 // #ifdef PROFILE
