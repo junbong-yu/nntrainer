@@ -76,5 +76,9 @@ if __name__ == "__main__":
     model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype="float", trust_remote_code=True)
     model.eval()
 
-    with open(output_name, "wb") as f_model :
-        save_qwen3_for_nntrainer(model.state_dict(), config.num_hidden_layers, data_dtype, f_model)
+
+    for param_tensor in model.state_dict():
+        print(param_tensor, "\t", model.state_dict()[param_tensor].size())
+
+#    with open(output_name, "wb") as f_model :
+#        save_qwen3_for_nntrainer(model.state_dict(), config.num_hidden_layers, data_dtype, f_model)

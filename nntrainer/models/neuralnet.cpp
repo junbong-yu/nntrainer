@@ -745,12 +745,23 @@ void NeuralNetwork::load(const std::string &file_path,
         auto node = *iter;
         auto exec_order = std::get<0>((*iter)->getExecutionOrder());
 
-        threads.emplace_back([&, node]() {
+        // threads.emplace_back([&, node]()
+        {
+          std::cout << "DEBUG: " << node->getName() << std::endl;
           if (!MMAP_READ) {
             auto local_model_file = checkedOpenStream<std::ifstream>(
               (v.size() == 2) ? v[1] : v[0], std::ios::in | std::ios::binary);
             node->read(local_model_file, false, exec_mode, fsu_mode,
                        std::numeric_limits<size_t>::max(), true, model_file_fd);
+
+            auto num_weights = node->getNumWeights();
+            if (static_cast<unsigned int>(num_weights) != 0)
+            {
+              auto num_weights = node->getNumWeights();
+              std::cout << "DEBUG: num weight: " << num_weights << std::endl;
+              auto weight = node->getWeightObject(static_cast<unsigned int>(num_weights) - 1);
+              std::cout << "DEBUG: weight: " << static_cast<Weight>(weight).getVariable() << std::endl;
+            }
           } else {
 #if defined(_WIN32)
             // Map per-ask, then unmap immediately after: enables early release
@@ -810,7 +821,7 @@ void NeuralNetwork::load(const std::string &file_path,
             ::munmap(mmap_ptr, f_size);
 #endif
           }
-        });
+        };
       }
       for (auto &t : threads) {
         if (t.joinable())

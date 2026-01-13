@@ -418,7 +418,7 @@ namespace xlmroberta
 
     // create input layer
     std::vector<std::string> input_params = {withKey("name", "input0"),
-                                             withKey("input_shape", "1:1:" + std::to_string(INIT_SEQ_LEN))};
+                                             withKey("input_shape", "1:1:" + std::to_string(MAX_POSITION_EMBEDDINGS))};
     printInputLayers(input_params, "input");
     layers.push_back(createLayer("input", input_params));
 
@@ -457,7 +457,7 @@ namespace xlmroberta
     // position_embedding
     std::vector<std::string> position_embedding_params = {
         "name=embedding_position_embedding",
-        "in_dim=" + std::to_string(NUM_VOCAB),
+        "in_dim=" + std::to_string(514),
         "weight_dtype=" + EMBEDDING_DTYPE,
         "out_dim=" + std::to_string(DIM),
         "input_layers=position"};
@@ -467,7 +467,7 @@ namespace xlmroberta
     // token_type_embedding
     std::vector<std::string> token_type_embedding_params = {
         "name=embedding_token_type_embedding",
-        "in_dim=" + std::to_string(NUM_VOCAB),
+        "in_dim=" + std::to_string(1), // JBDL fix this!!
         "weight_dtype=" + EMBEDDING_DTYPE,
         "out_dim=" + std::to_string(DIM),
         "input_layers=token_type"};

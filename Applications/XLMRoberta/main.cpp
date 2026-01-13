@@ -182,11 +182,11 @@ int main(int argc, char *argv[]) {
 //         nntr_cfg["system_prompt"]["tail_prompt"].get<std::string>();
 //     }
 
-//     // Construct weight file path
-//     const std::string weight_file =
-//       model_path + "/" + nntr_cfg["model_file_name"].get<std::string>();
+    // Construct weight file path
+    const std::string weight_file =
+      model_path + "/" + nntr_cfg["model_file_name"].get<std::string>();
 
-//     std::cout << weight_file << std::endl;
+    std::cout << weight_file << std::endl;
 
 //     // Initialize and run model
     auto model = causallm::Factory::Instance().create(
@@ -194,7 +194,8 @@ int main(int argc, char *argv[]) {
       generation_cfg, nntr_cfg);
       
     model->initialize();
-//     model->load_weight(weight_file);
+    std::cout << "(JBD) model init success" << std::endl;
+    model->load_weight(weight_file);
 
 // #ifdef PROFILE
 //     start_peak_tracker();
