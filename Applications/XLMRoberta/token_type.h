@@ -20,64 +20,73 @@
 #include <node_exporter.h>
 #include <utility>
 
-namespace xlmroberta {
+namespace xlmroberta
+{
 
-/**
- * @brief A token type layer for XLMRoberta.
- *
- */
-class TokenType final : public nntrainer::Layer {
-public:
   /**
-   * @brief Construct a new token type layer object
+   * @brief A token type layer for XLMRoberta.
    *
    */
-  TokenType() : Layer() {}
+  class TokenType final : public nntrainer::Layer
+  {
+  public:
+    /**
+     * @brief Construct a new token type layer object
+     *
+     */
+    TokenType() : Layer() {}
 
-  /**
-   * @brief Destroy the token type layer object
-   *
-   */
-  ~TokenType() {}
+    /**
+     * @brief Destroy the token type layer object
+     *
+     */
+    ~TokenType() {}
 
-  /**
-   * @copydoc Layer::finalize(InitLayerContext &context)
-   */
-  void finalize(nntrainer::InitLayerContext &context) override;
+    /**
+     * @copydoc Layer::finalize(InitLayerContext &context)
+     */
+    void finalize(nntrainer::InitLayerContext &context) override;
 
-  /**
-   * @copydoc Layer::forwarding(RunLayerContext &context, bool training)
-   */
-  void forwarding(nntrainer::RunLayerContext &context, bool training) override;
+    /**
+     * @copydoc Layer::forwarding(RunLayerContext &context, bool training)
+     */
+    void forwarding(nntrainer::RunLayerContext &context, bool training) override;
 
-  /**
-   * @copydoc Layer::calcDerivative(RunLayerContext &context)
-   */
-  void calcDerivative(nntrainer::RunLayerContext &context) override;
+    void incremental_forwarding(nntrainer::RunLayerContext &context,
+                                unsigned int from, unsigned int to,
+                                bool training) override
+    {
+      throw std::runtime_error("token_type doesn't support incremental_forwarding");
+    }
 
-  /**
-   * @copydoc bool supportBackwarding() const
-   */
-  bool supportBackwarding() const override { return false; };
+    /**
+     * @copydoc Layer::calcDerivative(RunLayerContext &context)
+     */
+    void calcDerivative(nntrainer::RunLayerContext &context) override;
 
-  /**
-   * @copydoc Layer::exportTo(Exporter &exporter, ExportMethods method)
-   */
-  void exportTo(nntrainer::Exporter &exporter,
-                const ml::train::ExportMethods &method) const override{};
+    /**
+     * @copydoc bool supportBackwarding() const
+     */
+    bool supportBackwarding() const override { return false; };
 
-  /**
-   * @copydoc Layer::getType()
-   */
-  const std::string getType() const override { return TokenType::type; };
+    /**
+     * @copydoc Layer::exportTo(Exporter &exporter, ExportMethods method)
+     */
+    void exportTo(nntrainer::Exporter &exporter,
+                  const ml::train::ExportMethods &method) const override {};
 
-  /**
-   * @copydoc Layer::setProperty(const std::vector<std::string> &values)
-   */
-  void setProperty(const std::vector<std::string> &values) override{};
+    /**
+     * @copydoc Layer::getType()
+     */
+    const std::string getType() const override { return TokenType::type; };
 
-  static constexpr const char *type = "token_type";
-};
+    /**
+     * @copydoc Layer::setProperty(const std::vector<std::string> &values)
+     */
+    void setProperty(const std::vector<std::string> &values) override {};
+
+    static constexpr const char *type = "token_type";
+  };
 } // namespace xlmroberta
 
 #endif /* __TOKEN_TYPE_H__ */

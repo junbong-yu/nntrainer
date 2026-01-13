@@ -161,6 +161,26 @@ namespace xlmroberta
   {
     std::vector<LayerHandle> layers;
 
+    // Create output dense layer
+    std::vector<std::string> output_param = {
+        withKey("name", "pooler_dense"),
+        withKey("unit", DIM),
+        withKey("input_layers", "encoder_" + std::to_string(NUM_LAYERS - 1) + "_output_layer_norm"),
+        withKey("weight_initializer", "xavier_uniform"),
+        withKey("bias_initializer", "zeros")};
+
+    printInputLayers(output_param, "pooler_dense");
+    layers.push_back(createLayer("fully_connected", output_param));
+
+    // Create output activation
+    std::vector<std::string> activation_param = {
+        withKey("name", "pooler_activation"),
+        withKey("input_layers", "pooler_dense"),
+        withKey("activation", "tanh")};
+
+    printInputLayers(activation_param, "pooler_activation");
+    layers.push_back(createLayer("activation", activation_param));
+
     // add created layers into the model
     for (auto &layer : layers)
     {
@@ -197,24 +217,22 @@ namespace xlmroberta
 
     // Create output dense layer
     std::vector<std::string> output_param = {
-        withKey("name", "layer" + std::to_string(layer_id) + "_output_dense"),
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_output_dense"),
         withKey("unit", DIM),
         withKey("input_layers", input_name),
         withKey("weight_initializer", "xavier_uniform"),
         withKey("bias_initializer", "zeros")};
 
-    printInputLayers(output_param, "layer" + std::to_string(layer_id) + "_output_dense");
+    printInputLayers(output_param, "encoder_" + std::to_string(layer_id) + "_output_dense");
     layers.push_back(createLayer("fully_connected", output_param));
 
     // Add layer normalization
     std::vector<std::string> norm_param = {
-        withKey("name", "layer" + std::to_string(layer_id) + "_output_layer_norm"),
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_output_layer_norm"),
         withKey("axis", "3"),
         withKey("epsilon", "1e-5"),
-        withKey("input_layers", "layer" + std::to_string(layer_id) + "_output_dense," +
-                                    (layer_id == 0 ? "embedding0_layer_norm" : "layer" + std::to_string(layer_id - 1) + "_output"))};
-
-    printInputLayers(norm_param, "layer" + std::to_string(layer_id) + "_output_layer_norm");
+        withKey("input_layers", "encoder_" + std::to_string(layer_id) + "_output_dense")};
+    printInputLayers(norm_param, "encoder_" + std::to_string(layer_id) + "_output_layer_norm");
     layers.push_back(createLayer("layer_normalization", norm_param));
 
     // add created layers into the model
@@ -230,20 +248,20 @@ namespace xlmroberta
 
     // Create intermediate dense layer
     std::vector<std::string> intermediate_param = {
-        withKey("name", "layer" + std::to_string(layer_id) + "_intermediate_dense"),
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_intermediate_dense"),
         withKey("unit", INTERMEDIATE_SIZE),
         withKey("input_layers", input_name),
         withKey("weight_initializer", "xavier_uniform"),
         withKey("bias_initializer", "zeros")};
-    printInputLayers(intermediate_param, "layer" + std::to_string(layer_id) + "_intermediate_dense");
+    printInputLayers(intermediate_param, "encoder_" + std::to_string(layer_id) + "_intermediate_dense");
     layers.push_back(createLayer("fully_connected", intermediate_param));
 
     // Add activation layer (GELU)
     std::vector<std::string> activation_param = {
-        withKey("name", "layer" + std::to_string(layer_id) + "_intermediate_act"),
-        withKey("input_layers", "layer" + std::to_string(layer_id) + "_intermediate_dense"),
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_intermediate_act"),
+        withKey("input_layers", "encoder_" + std::to_string(layer_id) + "_intermediate_dense"),
         withKey("activation", "gelu")};
-    printInputLayers(activation_param, "layer" + std::to_string(layer_id) + "_intermediate_act");
+    printInputLayers(activation_param, "encoder_" + std::to_string(layer_id) + "_intermediate_act");
     layers.push_back(createLayer("activation", activation_param));
 
     // add created layers into the model
@@ -258,14 +276,23 @@ namespace xlmroberta
     std::vector<LayerHandle> layers;
 
     std::vector<std::string> output_param = {
-        withKey("name", "encoder" + std::to_string(layer_id) + "_attention_output_dense"),
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_attention_output_dense"),
         withKey("unit", DIM),
-        withKey("disable_bias", "true"),
+        withKey("disable_bias", "false"),
         withKey("input_layers", input_name),
         withKey("weight_initializer", "ones")};
 
-    printInputLayers(output_param, "encoder" + std::to_string(layer_id) + "_attention_output_dense");
+    printInputLayers(output_param, "encoder_" + std::to_string(layer_id) + "_attention_output_dense");
     layers.push_back(createLayer("fully_connected", output_param));
+
+    std::vector<std::string> layer_norm_params = {
+        withKey("name", "encoder_" + std::to_string(layer_id) + "_attention_output_layer_norm"),
+        withKey("axis", "3"),
+        withKey("epsilon", "1e-5"),
+        withKey("input_layers", "encoder_" + std::to_string(layer_id) + "_attention_output_dense")};
+
+    printInputLayers(layer_norm_params, "encoder_" + std::to_string(layer_id) + "_attention_output_layer_norm");
+    layers.push_back(createLayer("layer_normalization", layer_norm_params));
 
     // add created layers into the model
     for (auto &layer : layers)
@@ -282,10 +309,10 @@ namespace xlmroberta
 
     std::vector<LayerHandle> layers;
 
-    auto Q = "encoder" + std::to_string(layer_id) + "_attention_self_wq";
-    auto K = "encoder" + std::to_string(layer_id) + "_attention_self_wk";
-    auto V = "encoder" + std::to_string(layer_id) + "_attention_self_wv";
-    auto A = "encoder" + std::to_string(layer_id) + "_attention_self_attention";
+    auto Q = "encoder_" + std::to_string(layer_id) + "_attention_self_wq";
+    auto K = "encoder_" + std::to_string(layer_id) + "_attention_self_wk";
+    auto V = "encoder_" + std::to_string(layer_id) + "_attention_self_wv";
+    auto A = "encoder_" + std::to_string(layer_id) + "_attention_self_attention";
 
     // V layer
     std::vector<std::string> v_params = {
@@ -315,6 +342,8 @@ namespace xlmroberta
     std::vector<std::string> a_params = {
         withKey("name", A),
         withKey("num_heads", n_heads),
+        withKey("num_heads_KV", n_heads),
+        withKey("max_timestep", std::to_string(MAX_POSITION_EMBEDDINGS)), // (JBD) is this correct?
         withKey("max_new_tokens", std::to_string(NUM_TO_GENERATE)),
         withKey("input_layers", {Q, K, V})};
     printInputLayers(a_params, A);
@@ -348,34 +377,33 @@ namespace xlmroberta
   void XLMRoberta::constructXLMRobertaAttention(int layer_id, std::string input_name)
   {
     constructXLMRobertaSelfAttention(layer_id, input_name);
-    input_name = "encoder" + std::to_string(layer_id) + "_attention_self_attention";
+    input_name = "encoder_" + std::to_string(layer_id) + "_attention_self_attention";
     constructXLMRobertaSelfOutput(layer_id, input_name);
   }
 
   void XLMRoberta::constructXLMRobertaLayer()
   {
-    std::string input_name = "embedding0_layer_norm"; // Start with embedding output
+    std::string input_name = "embedding_layer_norm"; // Start with embedding output
 
-    // for (int i = 0; i < NUM_LAYERS; ++i)
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < NUM_LAYERS; ++i)
     {
       // Construct attention sub-layer
       constructXLMRobertaAttention(i, input_name);
 
       // Update input_name to the output of attention
-      input_name = "encoder" + std::to_string(i) + "_attention_output_dense";
+      input_name = "encoder_" + std::to_string(i) + "_attention_output_layer_norm";
 
       // Construct intermediate sub-layer
       constructXLMRobertaIntermediate(i, input_name);
 
       // Update input_name to the output of intermediate
-      input_name = "layer" + std::to_string(i) + "_intermediate_output";
+      input_name = "encoder_" + std::to_string(i) + "_intermediate_act";
 
       // Construct output sub-layer
       constructXLMRobertaOutput(i, input_name);
 
       // Update input_name to the final output of this layer
-      input_name = "layer" + std::to_string(i) + "_output_layer_norm";
+      input_name = "encoder_" + std::to_string(i) + "_output_layer_norm";
     }
   }
 
@@ -416,53 +444,55 @@ namespace xlmroberta
     printInputLayers(token_type_params, "token_type");
     layers.push_back(createLayer("token_type", token_type_params));
 
-    // embedding0: word_embedding
+    // word_embedding
     std::vector<std::string> word_embedding_params = {
-        "name=embedding0_word_embedding",
+        "name=embedding_word_embedding",
         "in_dim=" + std::to_string(NUM_VOCAB),
         "weight_dtype=" + EMBEDDING_DTYPE,
         "out_dim=" + std::to_string(DIM),
         "input_layers=input0"};
-    printInputLayers(word_embedding_params, "embedding0_word_embedding");
+    printInputLayers(word_embedding_params, "embedding_word_embedding");
     layers.push_back(createLayer(embedding_type, word_embedding_params));
 
-    // embedding0: position_embedding
+    // position_embedding
     std::vector<std::string> position_embedding_params = {
-        "name=embedding0_position_embedding",
+        "name=embedding_position_embedding",
         "in_dim=" + std::to_string(NUM_VOCAB),
         "weight_dtype=" + EMBEDDING_DTYPE,
         "out_dim=" + std::to_string(DIM),
         "input_layers=position"};
-    printInputLayers(position_embedding_params, "embedding0_position_embedding");
+    printInputLayers(position_embedding_params, "embedding_position_embedding");
     layers.push_back(createLayer(embedding_type, position_embedding_params));
 
-    // embedding0: token_type_embedding
+    // token_type_embedding
     std::vector<std::string> token_type_embedding_params = {
-        "name=embedding0_token_type_embedding",
+        "name=embedding_token_type_embedding",
         "in_dim=" + std::to_string(NUM_VOCAB),
         "weight_dtype=" + EMBEDDING_DTYPE,
         "out_dim=" + std::to_string(DIM),
         "input_layers=token_type"};
-    printInputLayers(token_type_embedding_params, "embedding0_token_type_embedding");
+    printInputLayers(token_type_embedding_params, "embedding_token_type_embedding");
     layers.push_back(createLayer(embedding_type, token_type_embedding_params));
 
     // addition0: embeddings = inputs_embeds + token_type_embeddings
-    std::vector<std::string> addition0_params = {withKey("name", "embedding0_addition0"),
-                                                 withKey("input_layers", "embedding0_word_embedding,embedding0_token_type_embedding")};
-    printInputLayers(addition0_params, "embedding0_addition0");
+    std::vector<std::string> addition0_params = {withKey("name", "embedding_addition0"),
+                                                 withKey("input_layers", "embedding_word_embedding,embedding_token_type_embedding")};
+    printInputLayers(addition0_params, "embedding_addition0");
     layers.push_back(createLayer("addition", addition0_params));
 
     // addition1: embeddings + position_embeddings
-    std::vector<std::string> addition1_params = {withKey("name", "embedding0_addition1"),
-                                                 withKey("input_layers", "embedding0_addition0,embedding0_position_embedding")};
-    printInputLayers(addition1_params, "embedding0_addition1");
+    std::vector<std::string> addition1_params = {
+        withKey("name", "embedding_addition1"),
+        withKey("input_layers", "embedding_addition0,embedding_position_embedding")};
+    printInputLayers(addition1_params, "embedding_addition1");
     layers.push_back(createLayer("addition", addition1_params));
 
-    std::vector<std::string> layer_norm_params = {"name=embedding0_layer_norm",
+    // layer normalization
+    std::vector<std::string> layer_norm_params = {"name=embedding_layer_norm",
                                                   "axis=3",
                                                   "epsilon=1e-5",
-                                                  "input_layers=embedding0_addition1"};
-    printInputLayers(layer_norm_params, "embedding0_layer_norm");
+                                                  "input_layers=embedding_addition1"};
+    printInputLayers(layer_norm_params, "embedding_layer_norm");
     layers.push_back(createLayer("layer_normalization", layer_norm_params));
 
     for (auto &layer : layers)
@@ -489,7 +519,7 @@ namespace xlmroberta
       {
         constructXLMRobertaEmbeddings();
         constructXLMRobertaEncoder();
-        // constructXLMRobertaPooler();
+        constructXLMRobertaPooler();
       }
       else
       {

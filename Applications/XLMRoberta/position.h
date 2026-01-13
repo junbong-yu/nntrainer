@@ -20,64 +20,73 @@
 #include <node_exporter.h>
 #include <utility>
 
-namespace xlmroberta {
+namespace xlmroberta
+{
 
-/**
- * @brief A position layer for XLMRoberta.
- *
- */
-class Position final : public nntrainer::Layer {
-public:
   /**
-   * @brief Construct a new position layer object
+   * @brief A position layer for XLMRoberta.
    *
    */
-  Position() : Layer() {}
+  class Position final : public nntrainer::Layer
+  {
+  public:
+    /**
+     * @brief Construct a new position layer object
+     *
+     */
+    Position() : Layer() {}
 
-  /**
-   * @brief Destroy the position layer object
-   *
-   */
-  ~Position() {}
+    /**
+     * @brief Destroy the position layer object
+     *
+     */
+    ~Position() {}
 
-  /**
-   * @copydoc Layer::finalize(InitLayerContext &context)
-   */
-  void finalize(nntrainer::InitLayerContext &context) override;
+    /**
+     * @copydoc Layer::finalize(InitLayerContext &context)
+     */
+    void finalize(nntrainer::InitLayerContext &context) override;
 
-  /**
-   * @copydoc Layer::forwarding(RunLayerContext &context, bool training)
-   */
-  void forwarding(nntrainer::RunLayerContext &context, bool training) override;
+    /**
+     * @copydoc Layer::forwarding(RunLayerContext &context, bool training)
+     */
+    void forwarding(nntrainer::RunLayerContext &context, bool training) override;
 
-  /**
-   * @copydoc Layer::calcDerivative(RunLayerContext &context)
-   */
-  void calcDerivative(nntrainer::RunLayerContext &context) override;
+    void incremental_forwarding(nntrainer::RunLayerContext &context,
+                                unsigned int from, unsigned int to,
+                                bool training) override
+    {
+      throw std::runtime_error("position doesn't support incremental_forwarding");
+    }
 
-  /**
-   * @copydoc bool supportBackwarding() const
-   */
-  bool supportBackwarding() const override { return false; };
+    /**
+     * @copydoc Layer::calcDerivative(RunLayerContext &context)
+     */
+    void calcDerivative(nntrainer::RunLayerContext &context) override;
 
-  /**
-   * @copydoc Layer::exportTo(Exporter &exporter, ExportMethods method)
-   */
-  void exportTo(nntrainer::Exporter &exporter,
-                const ml::train::ExportMethods &method) const override{};
+    /**
+     * @copydoc bool supportBackwarding() const
+     */
+    bool supportBackwarding() const override { return false; };
 
-  /**
-   * @copydoc Layer::getType()
-   */
-  const std::string getType() const override { return Position::type; };
+    /**
+     * @copydoc Layer::exportTo(Exporter &exporter, ExportMethods method)
+     */
+    void exportTo(nntrainer::Exporter &exporter,
+                  const ml::train::ExportMethods &method) const override {};
 
-  /**
-   * @copydoc Layer::setProperty(const std::vector<std::string> &values)
-   */
-  void setProperty(const std::vector<std::string> &values) override{};
+    /**
+     * @copydoc Layer::getType()
+     */
+    const std::string getType() const override { return Position::type; };
 
-  static constexpr const char *type = "position";
-};
+    /**
+     * @copydoc Layer::setProperty(const std::vector<std::string> &values)
+     */
+    void setProperty(const std::vector<std::string> &values) override {};
+
+    static constexpr const char *type = "position";
+  };
 } // namespace xlmroberta
 
 #endif /* __POSITION_H__ */
