@@ -211,7 +211,64 @@ void Embedding::run(const std::vector<WSTR>& prompts, bool do_sample, const WSTR
 std::vector<float *> Embedding::encode(const std::vector<WSTR> &prompts,
                                        const WSTR system_prompt,
                                        const WSTR tail_prompt) {
-  std::vector<float *> output;
+  if (!is_initialized) {
+    throw std::runtime_error("Embedding model is not initialized. Please call "
+                             "initialize() before encode().");
+  }
+
+  std::vector<std::vector<int64_t>> init_input;
+  std::vector<std::vector<float *>> input;
+
+  for (std::size_t prompt_idx = 0; prompt_idx < prompts.size(); prompt_idx++)
+  {
+#if defined(_WIN32)
+    std::wstring prompt_ = system_prompt + prompt + tail_prompt;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    auto _input = tokenizer->Encode(converter.to_bytes(prompt_));
+#else
+    std::string prompt_ = system_prompt + prompts[prompt_idx] + tail_prompt;
+    std::cout << "(JBD) input : " << prompt_ << std::endl;
+    auto _input = tokenizer->Encode(prompt_);
+
+#endif
+
+    unsigned int _len = _input.size();
+    unsigned int input_len = _len;
+
+    if (_len > MAX_SEQ_LEN)
+    {
+      input_len = MAX_SEQ_LEN;
+    }
+
+    // feed only available length
+    for (unsigned int i = 0; i < input_len; ++i)
+      init_input[prompt_idx].push_back(_input[i]);
+
+    float *input_sample =
+        (float *)malloc(sizeof(float) * BATCH_SIZE * MAX_SEQ_LEN);
+
+    for (unsigned int b = 0; b < BATCH_SIZE; ++b)
+    {
+      for (unsigned int i = 0; i < input_len; ++i)
+      {
+        input_sample[static_cast<size_t>(b) * MAX_SEQ_LEN + i] =
+            static_cast<float>(init_input[prompt_idx][i]);
+      }
+    }
+
+    input[prompt_idx].push_back(input_sample);
+    free(input_sample);
+  }
+
+  std::vector<float *> label; // Empty label for inference
+
+  // Run incremental inference for the prefill stage
+  // start: 0, end: input_len (process all tokens at once)
+  // This performs a single forward pass for the entire prompt sequence to get
+  // embeddings.
+  auto output = model->incremental_inference(BATCH_SIZE, input, label,
+                                             input_len, 0, input_len, false);
+
   return output;
 }
 
