@@ -116,6 +116,16 @@ public:
 };
 
 /**
+ * @brief IsCausal property
+ */
+class IsCausal : public nntrainer::Property<bool> {
+public:
+  IsCausal(bool value = true) { set(value); };
+  static constexpr const char *key = "is_causal"; /**< unique key to access */
+  using prop_tag = nntrainer::bool_prop_tag;      /**< property type */
+};
+
+/**
  * @brief RopeScalingType
  * - default
  * - yarn
@@ -286,7 +296,8 @@ private:
     nntrainer::props::AverageAttentionWeight, nntrainer::props::MaxTimestep,
     props::SlidingWindow, props::MaxNewTokens, props::RopeTheta,
     props::MaxPositionEmbeddings, props::UseSink, props::RopeScalingType,
-    props::RopeScalingFactor, props::RopeScalingMaxPositionEmbeddings>
+    props::RopeScalingFactor, props::RopeScalingMaxPositionEmbeddings,
+    props::IsCausal>
     mha_core_props; /**< mha_core layer properties */
 
   /** softmax activation operation */
@@ -303,6 +314,7 @@ private:
   float theta;
   size_t local_window_size;
   bool use_sink = false;
+  bool is_causal;
 
   enum INOUT_INDEX {
     /** input index */
@@ -401,6 +413,13 @@ private:
   void softmax_triangle(nntrainer::Tensor &qk_out, size_t row, size_t num_heads,
                         unsigned int from, BS::thread_pool<> &pool,
                         nntrainer::Tensor &sink_step);
+
+  void softmax_full(nntrainer::Tensor &qk_out, size_t row, size_t num_heads,
+                    unsigned int from, BS::thread_pool<> &pool);
+
+  void softmax_full(nntrainer::Tensor &qk_out, size_t row, size_t num_heads,
+                    unsigned int from, BS::thread_pool<> &pool,
+                    nntrainer::Tensor &sink_step);
 
   void compute_vcaches(nntrainer::Tensor &in, nntrainer::Tensor &vcache,
                        nntrainer::Tensor &out, unsigned int from,
