@@ -128,7 +128,7 @@ void Transformer::setupParameters(json &cfg, json &generation_cfg,
   TIE_WORD_EMBEDDINGS = cfg["tie_word_embeddings"].get<bool>();
   NORM_EPS = cfg["rms_norm_eps"];
   GQA_SIZE = NUM_HEADS / NUM_KEY_VALUE_HEADS;
-
+  IS_CAUSAL = cfg.contains("is_causal") ? cfg["is_causal"].get<bool>() : true;
   return;
 };
 
@@ -352,6 +352,7 @@ Transformer::createAttention(const int layer_id, int seq_len, int n_heads,
                                 : UINT_MAX),
     withKey("rope_theta", ROPE_THETA),
     withKey("max_new_tokens", std::to_string(NUM_TO_GENERATE)),
+    withKey("is_causal", IS_CAUSAL ? "true" : "false"),
     withKey("input_layers", {Q, K, V})};
   layers.push_back(createLayer("mha_core", a_params));
 
