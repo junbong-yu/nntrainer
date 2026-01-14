@@ -747,7 +747,7 @@ void NeuralNetwork::load(const std::string &file_path,
 
         // threads.emplace_back([&, node]()
         {
-          std::cout << "DEBUG: " << node->getName() << std::endl;
+          std::cout << "[DEBUG] checking node:" << node->getName() << std::endl;
           if (!MMAP_READ) {
             auto local_model_file = checkedOpenStream<std::ifstream>(
               (v.size() == 2) ? v[1] : v[0], std::ios::in | std::ios::binary);
@@ -758,9 +758,12 @@ void NeuralNetwork::load(const std::string &file_path,
             if (static_cast<unsigned int>(num_weights) != 0)
             {
               auto num_weights = node->getNumWeights();
-              std::cout << "DEBUG: num weight: " << num_weights << std::endl;
-              auto weight = node->getWeightObject(static_cast<unsigned int>(num_weights) - 1);
-              std::cout << "DEBUG: weight: " << static_cast<Weight>(weight).getVariable() << std::endl;
+              std::cout << "[DEBUG]: num weight: " << num_weights << std::endl;
+              for (int i = 0; i < num_weights; i++)
+              {
+                auto weight = node->getWeightObject(i);
+                std::cout << "[DEBUG]: weight: " << static_cast<Weight>(weight).getVariable() << std::endl;
+              }
             }
           } else {
 #if defined(_WIN32)

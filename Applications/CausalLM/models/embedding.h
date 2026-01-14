@@ -48,6 +48,9 @@ namespace causallm
     void run(const WSTR prompt, bool do_sample = false,
              const WSTR system_prompt = "", const WSTR tail_prmopt = "") override;
 
+    void run(const std::vector<WSTR> &prompts, bool do_sample = false,
+             const WSTR system_prompt = "", const WSTR tail_prompt = "") override;
+
     /**
      * @brief Encode the prompt and return the embedding
      * @param prompt User prompt
@@ -56,6 +59,9 @@ namespace causallm
      * @return Embedding output from the model
      */
     std::vector<float *> encode(const WSTR prompt, const WSTR system_prompt = "",
+                                const WSTR tail_prompt = "");
+
+    std::vector<float *> encode(const std::vector<WSTR> &prompts, const WSTR system_prompt = "",
                                 const WSTR tail_prompt = "");
 
   protected:

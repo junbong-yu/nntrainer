@@ -32,6 +32,30 @@ void TokenType::calcDerivative(nntrainer::RunLayerContext &context) {
   // yet."));
 }
 
+void TokenType::incremental_forwarding(nntrainer::RunLayerContext &context,
+                                       unsigned int from, unsigned int to,
+                                       bool training)
+{
+  // Get input tensor (input_ids)
+  nntrainer::Tensor &input_ids = context.getInput(SINGLE_INOUT_IDX);
+
+  // Get output tensor (token_type_ids)
+  nntrainer::Tensor &token_type_ids = context.getOutput(SINGLE_INOUT_IDX);
+
+  // For XLM-RoBERTa, token_type_ids are typically all zeros since it processes
+  // single sentences. We follow the same approach as the Python implementation
+  // by creating position_ids first and then setting all token_type_ids to 0.
+
+  // Create temporary position_ids tensor with same dimensions as input
+  nntrainer::Tensor position_ids(input_ids.getDim());
+
+  // Generate position_ids from input_ids
+  createPositionIdsFromInputIds(input_ids, position_ids, 1);
+
+  // Set all token_type_ids to 0 (following XLM-RoBERTa convention for single sentences)
+  token_type_ids.setValue(0);
+}
+
 void TokenType::forwarding(nntrainer::RunLayerContext &context,
                                 bool training) {
   // Get input tensor (input_ids)

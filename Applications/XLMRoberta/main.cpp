@@ -168,19 +168,19 @@ int main(int argc, char *argv[]) {
       causallm::LoadJsonFile(model_path + "/generation_config.json");
     json nntr_cfg = causallm::LoadJsonFile(model_path + "/nntr_config.json");
 
-//     // Determine input text
-//     if (argc >= 3) {
-//       input_text = argv[2];
-//     } else {
-//       input_text = nntr_cfg["sample_input"].get<std::string>();
-//     }
+    // Determine input text
+    if (argc >= 3) {
+      input_text = argv[2];
+    } else {
+      input_text = nntr_cfg["sample_input"].get<std::string>();
+    }
 
-//     if (nntr_cfg.contains("system_prompt")) {
-//       system_head_prompt =
-//         nntr_cfg["system_prompt"]["head_prompt"].get<std::string>();
-//       system_tail_prompt =
-//         nntr_cfg["system_prompt"]["tail_prompt"].get<std::string>();
-//     }
+    if (nntr_cfg.contains("system_prompt")) {
+      system_head_prompt =
+        nntr_cfg["system_prompt"]["head_prompt"].get<std::string>();
+      system_tail_prompt =
+        nntr_cfg["system_prompt"]["tail_prompt"].get<std::string>();
+    }
 
     // Construct weight file path
     const std::string weight_file =
@@ -204,8 +204,8 @@ int main(int argc, char *argv[]) {
 //     model->run(input_text.c_str(), generation_cfg["do_sample"],
 //                system_head_prompt.c_str(), system_tail_prompt.c_str());
 // #else
-//     model->run(input_text, generation_cfg["do_sample"], system_head_prompt,
-//                system_tail_prompt);
+    model->run(input_text, false, system_head_prompt,
+               system_tail_prompt);
 // #endif
 // #ifdef PROFILE
 //     stop_and_print_peak();

@@ -183,6 +183,39 @@ void Embedding::run(const WSTR prompt, bool do_sample, const WSTR system_prompt,
   }
 }
 
+void Embedding::run(const std::vector<WSTR>& prompts, bool do_sample, const WSTR system_prompt,
+                    const WSTR tail_prompt) {
+
+  try {
+    std::vector<float *> results = encode(prompts, system_prompt, tail_prompt);
+
+    std::cout << "Embedding Result (" << BATCH_SIZE
+              << " batch(es)):" << std::endl;
+    for (unsigned int b = 0; b < BATCH_SIZE; ++b) {
+      std::cout << "Batch " << b << ": [";
+      // Print first few elements as sample
+      int print_dim = (DIM > 10) ? 10 : DIM;
+      for (int i = 0; i < print_dim; ++i) {
+        std::cout << results[0][b * DIM + i]
+                  << (i == print_dim - 1 ? "" : ", ");
+      }
+      if (DIM > 10)
+        std::cout << ", ...";
+      std::cout << "] (Total DIM: " << DIM << ")" << std::endl;
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error during embedding run: " << e.what() << std::endl;
+  }
+}
+
+std::vector<float *> Embedding::encode(const std::vector<WSTR> &prompts,
+                                       const WSTR system_prompt,
+                                       const WSTR tail_prompt) {
+  std::vector<float *> output;
+  return output;
+}
+
+
 std::vector<float *> Embedding::encode(const WSTR prompt,
                                        const WSTR system_prompt,
                                        const WSTR tail_prompt) {
@@ -197,7 +230,9 @@ std::vector<float *> Embedding::encode(const WSTR prompt,
   auto _input = tokenizer->Encode(converter.to_bytes(prompt_));
 #else
   std::string prompt_ = system_prompt + prompt + tail_prompt;
+  std::cout << "(JBD) input : " << prompt_ << std::endl;
   auto _input = tokenizer->Encode(prompt_);
+  
 #endif
 
   std::vector<int64_t> init_input;

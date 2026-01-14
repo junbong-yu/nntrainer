@@ -56,13 +56,13 @@ namespace xlmroberta
     {
       if (param.find("input_layers=") == 0)
       {
-        std::cout << "[DEBUG] " << layer_type << " input_layers: " << param.substr(12) << std::endl;
+        std::cout << "[DEBUG] layver name --> " << layer_type << " input_layers: " << param.substr(12) << std::endl;
         break;
       }
       else if (param.find("input_layers") != std::string::npos && param.find("=") != std::string::npos)
       {
         size_t pos = param.find("=");
-        std::cout << "[DEBUG] " << layer_type << " input_layers: " << param.substr(pos + 1) << std::endl;
+        std::cout << "[DEBUG] layver name --> " << layer_type << " input_layers: " << param.substr(pos + 1) << std::endl;
         break;
       }
     }

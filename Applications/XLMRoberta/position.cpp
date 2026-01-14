@@ -46,6 +46,21 @@ void Position::forwarding(nntrainer::RunLayerContext &context,
   createPositionIdsFromInputIds(input_ids, position_ids, PAD_TOKEN_ID);
 }
 
+void Position::incremental_forwarding(nntrainer::RunLayerContext &context,
+                            unsigned int from, unsigned int to,
+                            bool training)
+{
+  // Get input tensor (input_ids)
+  nntrainer::Tensor &input_ids = context.getInput(SINGLE_INOUT_IDX);
+
+  // Get output tensor (position_ids)
+  nntrainer::Tensor &position_ids = context.getOutput(SINGLE_INOUT_IDX);
+
+  // Create position IDs using utility function
+  // pad_token_id is 1 (hardcoded as requested)
+  createPositionIdsFromInputIds(input_ids, position_ids, PAD_TOKEN_ID);
+}
+
 #ifdef PLUGGABLE
 
 nntrainer::Layer *create_position_layer() {

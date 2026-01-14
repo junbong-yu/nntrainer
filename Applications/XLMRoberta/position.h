@@ -54,10 +54,7 @@ namespace xlmroberta
 
     void incremental_forwarding(nntrainer::RunLayerContext &context,
                                 unsigned int from, unsigned int to,
-                                bool training) override
-    {
-      throw std::runtime_error("position doesn't support incremental_forwarding");
-    }
+                                bool training) override;
 
     /**
      * @copydoc Layer::calcDerivative(RunLayerContext &context)
