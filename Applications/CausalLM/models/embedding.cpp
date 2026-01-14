@@ -228,7 +228,7 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> &prompts,
 #else
     std::string prompt_ = system_prompt + prompts[prompt_idx] + tail_prompt;
     std::cout << "(JBD) input : " << prompt_ << std::endl;
-    auto _input = tokenizer->Encode(prompt_);
+    auto _input = tokenizer->Encode(prompt_); // std::vector<int32_t>
 
 #endif
 
