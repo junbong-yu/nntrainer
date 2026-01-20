@@ -44,7 +44,7 @@ using causallm::ModelType;
 
 namespace xlmroberta
 {
-  static const bool debug = true; // Set to false to disable debugging
+  static const bool debug = false; // Set to false to disable debugging
 
   // Helper function to extract and print input_layers parameter
   void printInputLayers(const std::vector<std::string> &params, const std::string &layer_type)
@@ -110,6 +110,8 @@ namespace xlmroberta
                                    causallm::json &nntr_cfg)
   {
     Embedding::setupParameters(cfg, generation_cfg, nntr_cfg);
+
+    IS_CAUSAL = false; // it is better to specify in config.json
 
     std::string modules_config_path = "modules.json";
     if (nntr_cfg.contains("module_config_path"))
@@ -337,7 +339,7 @@ namespace xlmroberta
     auto K = "encoder_" + std::to_string(layer_id) + "_attention_self_wk";
     auto V = "encoder_" + std::to_string(layer_id) + "_attention_self_wv";
     auto A = "encoder_" + std::to_string(layer_id) + "_attention_self_attention";
-    auto O = "encoder_" + std::to_string(layer_id) + "_attention_self_out";
+    auto O = "encoder_" + std::to_string(layer_id) + "_attention_self_wo";
 
     // V layer
     std::vector<std::string> v_params = {
@@ -373,6 +375,8 @@ namespace xlmroberta
         withKey("num_heads_kv", n_heads),
         withKey("max_timestep", MAX_POSITION_EMBEDDINGS),
         withKey("sliding_window", SLIDING_WINDOW),
+        withKey("is_causal", IS_CAUSAL ? "true" : "false"),
+        withKey("disable_rope", DISABLE_ROPE ? "true" : "false"),
         withKey("rope_theta", ROPE_THETA),
         withKey("max_position_embeddings", MAX_POSITION_EMBEDDINGS),
         withKey("max_new_tokens", MAX_POSITION_EMBEDDINGS),
@@ -410,7 +414,7 @@ namespace xlmroberta
 
     std::vector<std::string> tmp_add_params = {
         withKey("name", "encoder_" + std::to_string(layer_id) + "_attention_tmp_add"),
-        withKey("input_layers", input_name + ",encoder_" + std::to_string(layer_id) + "_attention_self_out")};
+        withKey("input_layers", input_name + ",encoder_" + std::to_string(layer_id) + "_attention_self_wo")};
     printInputLayers(tmp_add_params, "encoder_" + std::to_string(layer_id) + "_attention_tmp_add");
     layers.push_back(createLayer("addition", tmp_add_params));
 
