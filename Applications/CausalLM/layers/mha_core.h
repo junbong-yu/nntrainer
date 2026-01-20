@@ -25,6 +25,7 @@
 #define __MHA_CORE_H__
 
 #pragma once
+
 #ifdef _WIN32
 #define WIN_EXPORT __declspec(dllexport)
 #else
@@ -125,8 +126,15 @@ public:
   using prop_tag = nntrainer::bool_prop_tag;      /**< property type */
 };
 
-/**
- * @brief RopeScalingType
+/** * @brief DisableRope property */
+class DisableRope : public nntrainer::Property<bool> {
+public:
+  DisableRope(bool value = false) { set(value); };
+  static constexpr const char *key = "disable_rope"; /**< unique key to access */
+  using prop_tag = nntrainer::bool_prop_tag;         /**< property type */
+};
+
+/** * @brief RopeScalingType
  * - default
  * - yarn
  */
@@ -232,6 +240,7 @@ public:
     ml::train::TensorDim &cache_key_step_dim,
     ml::train::TensorDim &cache_value_dim,
     ml::train::TensorDim &cache_value_step_dim, nntrainer::Tensor &sink_step);
+
   /**
    * @copydoc Layer::calcDerivative(RunLayerContext &context)
    */
@@ -297,7 +306,7 @@ private:
     props::SlidingWindow, props::MaxNewTokens, props::RopeTheta,
     props::MaxPositionEmbeddings, props::UseSink, props::RopeScalingType,
     props::RopeScalingFactor, props::RopeScalingMaxPositionEmbeddings,
-    props::IsCausal>
+    props::IsCausal, props::DisableRope>
     mha_core_props; /**< mha_core layer properties */
 
   /** softmax activation operation */
@@ -315,6 +324,7 @@ private:
   size_t local_window_size;
   bool use_sink = false;
   bool is_causal;
+  bool disable_rope;
 
   enum INOUT_INDEX {
     /** input index */

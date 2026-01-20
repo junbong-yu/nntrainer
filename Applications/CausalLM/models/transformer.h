@@ -175,6 +175,8 @@ protected:
   unsigned int FSU_LOOKAHEAD;
 
   bool IS_CAUSAL;
+  bool ADD_SPECIAL_TOKEN;
+  bool DISABLE_ROPE;
 };
 /**
  * Loads JSON data from a file with detailed error handling
