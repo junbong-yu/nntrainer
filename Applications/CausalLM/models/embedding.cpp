@@ -183,6 +183,32 @@ void Embedding::run(const WSTR prompt, bool do_sample, const WSTR system_prompt,
   }
 }
 
+
+void Embedding::run(const std::vector<WSTR> &prompts, bool do_sample,
+                    const std::vector<WSTR> system_prompt, const std::vector<WSTR> tail_prompt)
+{
+  //   try {
+  //   std::vector<float *> results = encode(prompt, system_prompt, tail_prompt);
+
+  //   std::cout << "Embedding Result (" << BATCH_SIZE
+  //             << " batch(es)):" << std::endl;
+  //   for (unsigned int b = 0; b < BATCH_SIZE; ++b) {
+  //     std::cout << "Batch " << b << ": [";
+  //     // Print first few elements as sample
+  //     int print_dim = (DIM > 10) ? 10 : DIM;
+  //     for (int i = 0; i < print_dim; ++i) {
+  //       std::cout << results[0][b * DIM + i]
+  //                 << (i == print_dim - 1 ? "" : ", ");
+  //     }
+  //     if (DIM > 10)
+  //       std::cout << ", ...";
+  //     std::cout << "] (Total DIM: " << DIM << ")" << std::endl;
+  //   }
+  // } catch (const std::exception &e) {
+  //   std::cerr << "Error during embedding run: " << e.what() << std::endl;
+  // }
+}
+
 std::vector<float *> Embedding::encode(const WSTR prompt,
                                        const WSTR system_prompt,
                                        const WSTR tail_prompt) {
@@ -232,6 +258,14 @@ std::vector<float *> Embedding::encode(const WSTR prompt,
 
   free(input_sample);
 
+  return output;
+}
+
+std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
+                                       const std::vector<WSTR> system_prompts,
+                                       const std::vector<WSTR> tail_prompts)
+{
+  std::vector<float *> output;
   return output;
 }
 

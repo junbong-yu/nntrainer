@@ -46,6 +46,9 @@ public:
   void run(const WSTR prompt, bool do_sample = false,
            const WSTR system_prompt = "", const WSTR tail_prmopt = "") override;
 
+  void run(const std::vector<WSTR> &prompts, bool do_sample,
+           const std::vector<WSTR> system_prompt, const std::vector<WSTR> tail_prompt) override;
+
   /**
    * @brief Encode the prompt and return the embedding
    * @param prompt User prompt
@@ -55,6 +58,16 @@ public:
    */
   std::vector<float *> encode(const WSTR prompt, const WSTR system_prompt = "",
                               const WSTR tail_prompt = "");
+
+  /**
+   * @brief Encode the prompt and return the embedding
+   * @param prompt User prompt
+   * @param system_prompt System prompt
+   * @param tail_prompt Tail prompt
+   * @return Embedding output from the model
+   */
+  std::vector<float *> encode(const std::vector<WSTR> prompts, const std::vector<WSTR> system_prompts = {"",},
+                              const std::vector<WSTR> tail_prompts = {"",});
 
 protected:
   /**

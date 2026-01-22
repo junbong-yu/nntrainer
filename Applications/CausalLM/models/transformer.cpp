@@ -260,6 +260,17 @@ void Transformer::run(const WSTR prompt, bool do_sample,
   /// The run action can be defined by the precedent classes.
 }
 
+void Transformer::run(const std::vector<WSTR> &prompts, bool do_sample,
+                      const std::vector<WSTR> system_prompt, const std::vector<WSTR> tail_prompt) {
+  if (!is_initialized) {
+    throw std::runtime_error(
+      "Transformer model is not initialized. Please call "
+      "initialize() before run().");
+  }
+  ///@note This part should be filled in.
+  /// The run action can be defined by the precedent classes.
+}
+
 std::vector<LayerHandle>
 Transformer::createTransformerDecoderBlock(const int layer_id,
                                            std::string input_name) {

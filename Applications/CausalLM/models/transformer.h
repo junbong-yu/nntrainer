@@ -100,11 +100,17 @@ public:
   virtual void run(const WSTR prompt, bool do_sample = false,
                    const WSTR system_prompt = "", const WSTR tail_prompt = "");
 
-protected:
   /**
-   * @brief Setup the parameters for the Transformer model
+   * @brief run the Transformer model
    */
-  virtual void setupParameters(json &cfg, json &generation_cfg, json &nntr_cfg);
+  virtual void run(const std::vector<WSTR> &prompts, bool do_sample,
+                   const std::vector<WSTR> system_prompt = {"",}, const std::vector<WSTR> tail_prompt = {"",});
+
+protected:
+    /**
+     * @brief Setup the parameters for the Transformer model
+     */
+    virtual void setupParameters(json &cfg, json &generation_cfg, json &nntr_cfg);
 
   /**
    * @brief Construct Model
