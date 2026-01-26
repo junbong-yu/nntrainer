@@ -526,7 +526,9 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
   ml::train::TensorDim cached_key_dim = cache_key_dim;
   ml::train::TensorDim cached_value_dim = cache_value_dim;
   cached_key_dim.height(to);
+  cached_key_dim.batch(1);
   cached_value_dim.height(to);
+  cached_value_dim.batch(1);
 
   nntrainer::Tensor b_cached_key = cache_key.getSharedDataTensor(
     cached_key_dim, batch * cache_key_dim.getFeatureLen(), true);
