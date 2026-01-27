@@ -104,13 +104,19 @@ public:
    * @brief run the Transformer model
    */
   virtual void run(const std::vector<WSTR> &prompts, bool do_sample,
-                   const std::vector<WSTR> system_prompt = {"",}, const std::vector<WSTR> tail_prompt = {"",});
+                   const std::vector<WSTR> system_prompts =
+                     {
+                       "",
+                     },
+                   const std::vector<WSTR> tail_prompts = {
+                     "",
+                   });
 
 protected:
-    /**
-     * @brief Setup the parameters for the Transformer model
-     */
-    virtual void setupParameters(json &cfg, json &generation_cfg, json &nntr_cfg);
+  /**
+   * @brief Setup the parameters for the Transformer model
+   */
+  virtual void setupParameters(json &cfg, json &generation_cfg, json &nntr_cfg);
 
   /**
    * @brief Construct Model

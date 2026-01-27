@@ -13,9 +13,9 @@
     "num_to_generate": 514,
     "init_seq_len": 229,
     "max_seq_len": 514,
-    "batch_size": 1,
+    "batch_size": 4,
     "disable_rope": true,
-    "add_special_token": false,
+    "add_special_token": true,
     "modules_config_path": "/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct/modules.json",
     "module_config_path": "/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct/modules.json",
     "tokenizer_file": "/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct/tokenizer.json"
