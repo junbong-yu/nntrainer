@@ -113,6 +113,18 @@ public:
   virtual void run(const WSTR prompt, bool do_sample = false,
                    const WSTR system_prompt = "", const WSTR tail_prompt = "");
 
+  /**
+   * @brief run the Transformer model
+   */
+  virtual void run(const std::vector<WSTR> &prompts, bool do_sample,
+                   const std::vector<WSTR> system_prompts =
+                     {
+                       "",
+                     },
+                   const std::vector<WSTR> tail_prompts = {
+                     "",
+                   });
+
 protected:
   /**
    * @brief Setup the parameters for the Transformer model
