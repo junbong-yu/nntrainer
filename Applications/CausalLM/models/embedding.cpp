@@ -202,6 +202,32 @@ void Embedding::run(const WSTR prompt, bool do_sample, const WSTR system_prompt,
   }
 }
 
+void Embedding::run(const std::vector<WSTR> &prompts, bool do_sample,
+                    const std::vector<WSTR> system_prompts,
+                    const std::vector<WSTR> tail_prompts) {
+  try {
+    std::vector<float *> results =
+      encode(prompts, system_prompts, tail_prompts);
+
+    std::cout << "Embedding Result (" << BATCH_SIZE
+              << " batch(es)):" << std::endl;
+    for (unsigned int b = 0; b < BATCH_SIZE; ++b) {
+      std::cout << "Batch " << b << ": [";
+      // Print first few elements as sample
+      int print_dim = (DIM > 10) ? 10 : DIM;
+      for (int i = 0; i < print_dim; ++i) {
+        std::cout << results[0][b * DIM + i]
+                  << (i == print_dim - 1 ? "" : ", ");
+      }
+      if (DIM > 10)
+        std::cout << ", ...";
+      std::cout << "] (Total DIM: " << DIM << ")" << std::endl;
+    }
+  } catch (const std::exception &e) {
+    std::cerr << "Error during embedding run: " << e.what() << std::endl;
+  }
+}
+
 std::vector<float *> Embedding::encode(const WSTR prompt,
                                        const WSTR system_prompt,
                                        const WSTR tail_prompt) {
@@ -248,6 +274,92 @@ std::vector<float *> Embedding::encode(const WSTR prompt,
   // embeddings.
   std::vector<float *> output = model->incremental_inference(
     BATCH_SIZE, input, label, input_len, 0, input_len, false);
+
+  free(input_sample);
+
+  return output;
+}
+
+std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
+                                       const std::vector<WSTR> system_prompts,
+                                       const std::vector<WSTR> tail_prompts) {
+  if (!is_initialized) {
+    throw std::runtime_error("Embedding model is not initialized. Please call "
+                             "initialize() before encode().");
+  }
+
+  // Check if all input vectors have the same size
+  if (prompts.size() != system_prompts.size() ||
+      prompts.size() != tail_prompts.size()) {
+    throw std::runtime_error("All input vectors (prompts, system_prompts, "
+                             "tail_prompts) must have the same size.");
+  }
+
+  size_t batch_count = prompts.size();
+  if (batch_count == 0) {
+    throw std::runtime_error("Input vectors must not be empty.");
+  }
+
+  // Check if batch_count is different from BATCH_SIZE
+  if (batch_count != BATCH_SIZE) {
+    throw std::runtime_error("batch_count (" + std::to_string(batch_count) +
+                             ") is different from BATCH_SIZE (" +
+                             std::to_string(BATCH_SIZE) + ")");
+  }
+
+  std::vector<std::vector<int32_t>> encoded_inputs(BATCH_SIZE);
+  std::vector<unsigned int> input_lengths(BATCH_SIZE);
+  size_t max_input_len = 0;
+
+  for (size_t batch_idx = 0; batch_idx < BATCH_SIZE; ++batch_idx) {
+    const WSTR &prompt = prompts[batch_idx];
+    const WSTR &system_prompt = system_prompts[batch_idx];
+    const WSTR &tail_prompt = tail_prompts[batch_idx];
+
+#if defined(_WIN32)
+    std::wstring prompt_ = system_prompt + prompt + tail_prompt;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    encoded_inputs[batch_idx] =
+      tokenizer->Encode(converter.to_bytes(prompt_), true);
+#else
+    std::string prompt_ = system_prompt + prompt + tail_prompt;
+    encoded_inputs[batch_idx] = tokenizer->Encode(prompt_, true);
+#endif
+
+    unsigned int input_len =
+      std::min((unsigned int)encoded_inputs[batch_idx].size(),
+               (unsigned int)MAX_SEQ_LEN);
+    input_lengths[batch_idx] = input_len;
+    max_input_len = std::max(max_input_len, (size_t)input_len);
+  }
+
+  float *input_sample =
+    (float *)malloc(sizeof(float) * BATCH_SIZE * max_input_len);
+  if (!input_sample) {
+    throw std::runtime_error("Failed to allocate memory for input samples.");
+  }
+
+  std::fill(input_sample, input_sample + BATCH_SIZE * max_input_len, 1.0f);
+
+  for (size_t batch_idx = 0; batch_idx < BATCH_SIZE; ++batch_idx) {
+    unsigned int input_len = input_lengths[batch_idx];
+    for (unsigned int i = 0; i < input_len; ++i) {
+      input_sample[batch_idx * max_input_len + i] =
+        static_cast<float>(encoded_inputs[batch_idx][i]);
+    }
+  }
+
+  std::vector<float *> input;
+  input.push_back(input_sample);
+
+  std::vector<float *> label; // Empty label for inference
+
+  // Run incremental inference for the prefill stage
+  // start: 0, end: max_input_len (process all tokens at once)
+  // This performs a single forward pass for the entire prompt sequence to get
+  // embeddings.
+  std::vector<float *> output = model->incremental_inference(
+    batch_count, input, label, max_input_len, 0, max_input_len, false);
 
   free(input_sample);
 
