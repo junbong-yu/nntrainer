@@ -227,6 +227,27 @@ public:
     void *user_data = nullptr);
 
   /**
+   * @brief     Incremental forwarding with batch-wise from/to
+   * @param[in] from vector of start steps for each batch
+   * @param[in] to vector of end steps for each batch
+   * @param[in] training true if forwarding is on training
+   * @param[in] forwarding_op custom forwarding operation
+   * @param[in] stop_cb stop callback
+   * @param[in] user_data user data for callbacks
+   * @retval output tensors
+   */
+  sharedConstTensors
+  incremental_forwarding(const std::vector<unsigned int> &from,
+                         const std::vector<unsigned int> &to,
+                         bool training = false,
+                         std::function<void(std::shared_ptr<LayerNode>, bool)>
+                           forwarding_op =
+                             [](std::shared_ptr<LayerNode>, bool) {},
+                         std::function<bool(void *userdata)> stop_cb =
+                           [](void *user_data) { return false; },
+                         void *user_data = nullptr);
+
+  /**
    * @brief     backwarding the network graph
    * @param[in] iteration current iteration number
    * @param[in] forwarding_op operation for the forwarding

@@ -323,6 +323,27 @@ public:
                         unsigned int to, bool output_hidden_state = false) = 0;
 
   /**
+   * @brief     Run the incremental inference with batch-wise from/to
+   * @param[in] batch batch size of current input
+   * @param[in] input inputs as a list of each input data
+   * @param[in] label labels as a list of each label data
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of start steps for each batch
+   * @param[in] to vector of end steps for each batch
+   * @param[in] output_hidden_state return last hidden state if true else return
+   * all hidden state
+   * @retval list of output as float *
+   * @note The output memory must not be freed by the caller
+   */
+  virtual std::vector<float *>
+  incremental_inference(unsigned int batch, const std::vector<float *> &input,
+                        const std::vector<float *> &label,
+                        unsigned int init_seq_len,
+                        const std::vector<unsigned int> &from,
+                        const std::vector<unsigned int> &to,
+                        bool output_hidden_state = false) = 0;
+
+  /**
    * @brief     reset input dimensions of a model
    * @param[in] dims input dimensions
    * @note Similar to reinitialize, the resetInputDimension API is used for
