@@ -221,25 +221,27 @@ public:
   WIN_EXPORT void forwarding(nntrainer::RunLayerContext &context,
                              bool training) override;
 
+  template <typename T>
   void one_batch_incremental_forwarding(
-    const unsigned int batch, const unsigned int _from, const unsigned int from,
-    const unsigned int to, nntrainer::Tensor &query_step,
-    nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
-    nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
-    nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
-    ml::train::TensorDim &cache_key_step_dim,
-    ml::train::TensorDim &cache_value_dim,
-    ml::train::TensorDim &cache_value_step_dim);
+      const unsigned int batch, T T_from,
+      T T_to, nntrainer::Tensor &query_step,
+      nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
+      nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
+      nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
+      ml::train::TensorDim &cache_key_step_dim,
+      ml::train::TensorDim &cache_value_dim,
+      ml::train::TensorDim &cache_value_step_dim);
 
+  template <typename T>
   void one_batch_incremental_forwarding(
-    const unsigned int batch, const unsigned int _from, const unsigned int from,
-    const unsigned int to, nntrainer::Tensor &query_step,
-    nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
-    nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
-    nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
-    ml::train::TensorDim &cache_key_step_dim,
-    ml::train::TensorDim &cache_value_dim,
-    ml::train::TensorDim &cache_value_step_dim, nntrainer::Tensor &sink_step);
+      const unsigned int batch, T T_from,
+      T T_to, nntrainer::Tensor &query_step,
+      nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
+      nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
+      nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
+      ml::train::TensorDim &cache_key_step_dim,
+      ml::train::TensorDim &cache_value_dim,
+      ml::train::TensorDim &cache_value_step_dim, nntrainer::Tensor &sink_step);
 
   /**
    * @copydoc Layer::calcDerivative(RunLayerContext &context)
@@ -247,6 +249,19 @@ public:
   WIN_EXPORT void incremental_forwarding(nntrainer::RunLayerContext &context,
                                          unsigned int from, unsigned int to,
                                          bool training) override;
+
+                                         
+  /**
+   * @copydoc Layer::calcDerivative(RunLayerContext &context)
+   */
+  WIN_EXPORT void incremental_forwarding(nntrainer::RunLayerContext &context,
+                                          const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+                                          bool training) override;
+
+  template <typename T>
+  void internal_incremental_forwarding(nntrainer::RunLayerContext &context,
+                                                     T template_from, T template_to,
+                                                     bool training);
 
   /**
    * @copydoc Layer::calcDerivative(RunLayerContext &context)
@@ -373,6 +388,8 @@ private:
   inline static std::vector<std::vector<_FP16>> *freqs_cos_fp16 = {};
   inline static std::vector<std::vector<_FP16>> *freqs_sin_fp16 = {};
 #endif
+
+  void check_max_timestep(const unsigned int& _from, unsigned int &from, unsigned int &to);
 
   /**
    * @brief pre_compute frequencies for Rotary Embedding.

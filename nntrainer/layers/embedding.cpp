@@ -154,6 +154,29 @@ void EmbeddingLayer::incremental_forwarding(RunLayerContext &context,
       out_tensor.copyData(cur_weight);
     }
   }
+#define DEBUG
+#ifdef DEBUG  
+    std::cout.precision(10);  
+    std::cout << std::fixed;
+
+   std::cout
+       << "============================================================== "
+       << context.getName() << " : " << std::endl;
+
+    nntrainer::Tensor &___output = hidden_; // set value here!!
+
+    const int batchSize = ___output.batch();  
+
+    std::cout << ">>>>> output: " << std::endl;  
+
+    for (int i = 0; i < batchSize; ++i)
+    {
+      std::cout
+          << "output_" << i << ": " << ___output.getBatchSlice(i, 1);
+
+      std::cout << std::endl;
+    }
+#endif  
 }
 
 void EmbeddingLayer::calcDerivative(RunLayerContext &context) {

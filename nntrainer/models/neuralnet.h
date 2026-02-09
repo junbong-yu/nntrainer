@@ -416,9 +416,37 @@ public:
    * @retval shared_ptr<const Tensor>
    */
   sharedConstTensors incremental_inference(sharedConstTensors X,
-                                           sharedConstTensors label,
-                                           unsigned int init_seq_len,
-                                           unsigned int from, unsigned int to);
+                                            sharedConstTensors label,
+                                            unsigned int init_seq_len,
+                                            unsigned int from, unsigned int to);
+
+  /**
+   * @brief     Run NeuralNetwork incremental inference with batch-wise from/to
+   * @param[in] X input tensor
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of current working step indices
+   * @param[in] to vector of next working step indices
+   * @retval shared_ptr<const Tensor>
+   */
+  sharedConstTensors incremental_inference(sharedConstTensors X,
+                                            unsigned int init_seq_len,
+                                            const std::vector<unsigned int> &from,
+                                            const std::vector<unsigned int> &to);
+
+  /**
+   * @brief     Run NeuralNetwork incremental inference with batch-wise from/to
+   * @param[in] X input tensor
+   * @param[in] label label tensor
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of current working step indices
+   * @param[in] to vector of next working step indices
+   * @retval shared_ptr<const Tensor>
+   */
+  sharedConstTensors incremental_inference(sharedConstTensors X,
+                                            sharedConstTensors label,
+                                            unsigned int init_seq_len,
+                                            const std::vector<unsigned int> &from,
+                                            const std::vector<unsigned int> &to);
 
   /**
    * @brief     Run the incremental inference of the model

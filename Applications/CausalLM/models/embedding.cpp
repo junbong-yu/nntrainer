@@ -349,11 +349,12 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
   // This performs a single forward pass for the entire prompt sequence to get
   // embeddings.
   // Create batch-wise from/to vectors for per-batch processing
-  std::vector<unsigned int> from_values(BATCH_SIZE, 0);     // All start at 0
-  std::vector<unsigned int> to_values = input_lengths;      // Each batch ends at its length
+  // std::vector<unsigned int> from_values(BATCH_SIZE, 0);     // All start at 0
+  // std::vector<unsigned int> to_values = input_lengths;      // Each batch ends at its length
 
   std::vector<float *> output = model->incremental_inference(
-    batch_count, input, label, max_input_len, from_values, to_values, false);
+    batch_count, input, label, max_input_len, 0, max_input_len, false);
+    // batch_count, input, label, max_input_len, from_values, to_values, false);
 
   free(input_sample);
 

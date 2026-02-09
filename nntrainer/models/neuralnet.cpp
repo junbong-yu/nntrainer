@@ -518,8 +518,14 @@ sharedConstTensors NeuralNetwork::incremental_forwarding(
     if (exec_mode == ExecutionMode::TRAIN or
         (exec_mode == ExecutionMode::INFERENCE and !fsu_mode)) {
       model_graph.flushCacheExcept(f);
-      node->incremental_forwarding(from, to, training);
-    } else {
+
+      if (node->getType() == "mha_core")
+        node->incremental_forwarding(from, to, training);
+      else {
+        std::cout << "from: " << *(std::min_element(from.begin(), from.end())) << " to: " << *(std::max_element(to.begin(), to.end())) << std::endl;
+        node->incremental_forwarding(*(std::min_element(from.begin(), from.end())), *(std::max_element(to.begin(), to.end())), training);
+        }
+      } else {
       model_graph.checkLoadComplete(f);
       node->incremental_forwarding(from, to, training);
       model_graph.inActive(f);
@@ -1165,6 +1171,69 @@ sharedConstTensors NeuralNetwork::incremental_inference(
   return out;
 }
 
+sharedConstTensors
+NeuralNetwork::incremental_inference(sharedConstTensors X,
+                                      unsigned int init_seq_len,
+                                      const std::vector<unsigned int> &from,
+                                      const std::vector<unsigned int> &to) {
+  if (model_graph.getBatchSize() != X[0]->batch()) {
+    model_graph.setBatchSize(X[0]->batch());
+  }
+
+  sharedConstTensors out;
+  if (!validateInput(X))
+    throw std::invalid_argument("Input validation failed.");
+
+  if (!from.empty() && from[0] == 0) {
+    model_graph.allocateTensors(ExecutionMode::INFERENCE);
+  }
+
+  int nn_forward;
+  PROFILE_TIME_REGISTER_EVENT(nn_forward, "nn_forward");
+  PROFILE_TIME_START(nn_forward);
+
+  out = incremental_forwarding(from, to, X, {}, false);
+
+  PROFILE_TIME_END(nn_forward);
+
+  /** @todo: deallocate tensor after incremental inference **/
+  /** Clear the set inputs and labels */
+  model_graph.setInputsLabels({}, {});
+
+  return out;
+}
+
+sharedConstTensors NeuralNetwork::incremental_inference(
+  sharedConstTensors X, sharedConstTensors label, unsigned int init_seq_len,
+  const std::vector<unsigned int> &from,
+  const std::vector<unsigned int> &to) {
+  if (model_graph.getBatchSize() != X[0]->batch()) {
+    model_graph.setBatchSize(X[0]->batch());
+  }
+
+  sharedConstTensors out;
+  if (!validateInput(X))
+    throw std::invalid_argument("Input validation failed.");
+
+  if (!from.empty() && from[0] == 0) {
+    model_graph.allocateTensors(ExecutionMode::INFERENCE);
+  }
+
+  int nn_forward;
+  PROFILE_TIME_REGISTER_EVENT(nn_forward, "nn_forward");
+  PROFILE_TIME_START(nn_forward);
+
+  out = incremental_forwarding(from, to, X, label, false);
+
+  PROFILE_TIME_END(nn_forward);
+
+  /** @todo: deallocate tensor after incremental inference **/
+  /** Clear the set inputs and labels */
+  model_graph.setInputsLabels({}, {});
+
+  return out;
+}
+
 std::vector<float *> NeuralNetwork::incremental_inference(
   unsigned int batch_size, const std::vector<float *> &input,
   const std::vector<float *> &label, unsigned int init_seq_len,
@@ -1297,11 +1366,11 @@ std::vector<float *> NeuralNetwork::incremental_inference(
         Tensor::Map(label[idx], label_dim[idx].getDataLen() * sizeof(float),
                     label_dim[idx], 0)));
     }
-    output_tensors = incremental_forwarding(from, to, input_tensors,
-                                           label_tensors, false);
+    output_tensors = incremental_inference(input_tensors, label_tensors,
+                                           init_seq_len, from, to);
   } else {
     output_tensors =
-      incremental_forwarding(from, to, input_tensors, {}, false);
+      incremental_inference(input_tensors, init_seq_len, from, to);
   }
 
   std::vector<float *> output;

@@ -263,6 +263,30 @@ void FullyConnectedLayer::incremental_forwarding(RunLayerContext &context,
   hidden_step_dim.batch(1);
   hidden_step_dim.height(to - from);
 
+  #define DEBUG
+#ifdef DEBUG
+  std::cout.precision(10);
+  std::cout << std::fixed;
+
+  std::cout
+      << "============================================================== "
+      << context.getName() << " : " << std::endl;
+
+  nntrainer::Tensor &input = input_; // set value here!!
+
+  int batchSize = input.batch();
+
+  std::cout << ">>>>> input: " << std::endl;
+
+  for (int i = 0; i < batchSize; ++i)
+  {
+    std::cout
+        << "input" << i << ": " << input.getBatchSlice(i, 1);
+
+    std::cout << std::endl;
+  }
+#endif
+
   // @todo make it parallelized with batch axis
   for (unsigned int b = 0; b < hidden_.batch(); ++b) {
     Tensor input_step = input_.getSharedDataTensor(
@@ -301,6 +325,28 @@ void FullyConnectedLayer::incremental_forwarding(RunLayerContext &context,
       hidden_step.add_i(bias);
     }
   }
+
+#define DEBUG
+#ifdef DEBUG
+  std::cout.precision(10);
+  std::cout << std::fixed;
+
+  std::cout
+      << "============================================================== "
+      << context.getName() << " : " << std::endl;
+
+  nntrainer::Tensor &hidden = hidden_; // set value here!!
+
+  std::cout << ">>>>> hidden: " << std::endl;
+
+  for (int i = 0; i < batchSize; ++i)
+  {
+    std::cout
+        << "hidden" << i << ": " << hidden.getBatchSlice(i, 1);
+
+    std::cout << std::endl;
+  }
+#endif
 }
 
 void FullyConnectedLayer::calcDerivative(RunLayerContext &context) {
