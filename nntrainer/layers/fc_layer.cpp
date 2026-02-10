@@ -331,10 +331,6 @@ void FullyConnectedLayer::incremental_forwarding(RunLayerContext &context,
   std::cout.precision(10);
   std::cout << std::fixed;
 
-  std::cout
-      << "============================================================== "
-      << context.getName() << " : " << std::endl;
-
   nntrainer::Tensor &hidden = hidden_; // set value here!!
 
   std::cout << ">>>>> hidden: " << std::endl;

@@ -1507,12 +1507,52 @@ void FloatTensor::print(std::ostream &out) const {
   out << "data addr: " << data << '\n';
   out << dim;
 
-  if (len > 100) {
-    out << '[' << data[0] << ' ' << data[1] << ' ' << data[2] << " ... "
-        << data[len - 3] << ' ' << data[len - 2] << ' ' << data[len - 1] << ']'
-        << std::endl;
-    return;
-  }
+  if (len > 100) {  
+
+    out << "from 540 to 600" << "\n";
+    out << '[' << std::endl;                 // 시작 기호와 개행  
+
+    /* ----- 앞쪽 18개 ----- */  
+    for (int i = 540; i < 640; ++i) {  
+        out << data[i];                     // 원소 출력  
+        // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
+        if ((i + 1) % 3 == 0) {  
+            out << std::endl;  
+        } else {  
+            out << ' ';  
+        }  
+    }  
+
+    out << "... " << std::endl;              // 중간 요약 표시  
+
+    out << "from 3600 to 3700" << "\n";
+    /* ----- 앞쪽 18개 ----- */  
+    for (int i = 3600; i < 3700; ++i) {  
+        out << data[i];                     // 원소 출력  
+        // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
+        if ((i + 1) % 3 == 0) {  
+            out << std::endl;  
+        } else {  
+            out << ' ';  
+        }  
+    }  
+
+    out << "... " << std::endl;              // 중간 요약 표시  
+
+    /* ----- 뒤쪽 18개 ----- */  
+    for (int i = len - 18; i < len; ++i) {  
+        out << data[i];  
+        // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
+        if ((i - (len - 18) + 1) % 3 == 0) {  
+            out << std::endl;  
+        } else {  
+            out << ' ';  
+        }  
+    }  
+
+    out << ']' << std::endl;                 // 종료 기호와 개행  
+    return;  
+}  
 
   std::ios init(NULL);
   init.copyfmt(out);

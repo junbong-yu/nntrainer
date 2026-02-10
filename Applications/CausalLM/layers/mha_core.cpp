@@ -314,6 +314,33 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
 
     std::cout << std::endl;
   }
+
+    nntrainer::Tensor &____key = key; // set value here!!
+
+
+  std::cout << "============================================================== ____key: " << std::endl;
+
+  for (int i = 0; i < batchSize; ++i)
+  {
+    std::cout
+        << "____key" << i << ": " << ____key.getBatchSlice(i, 1);
+
+    std::cout << std::endl;
+  }
+    nntrainer::Tensor &____value = value; // set value here!!
+
+
+  std::cout << "============================================================== ____value: " << std::endl;
+
+  for (int i = 0; i < batchSize; ++i)
+  {
+    std::cout
+        << "____value" << i << ": " << ____value.getBatchSlice(i, 1);
+
+    std::cout << std::endl;
+  }
+  
+  
 #endif
 
   const unsigned int num_heads_Q =
@@ -410,13 +437,15 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
     }
     std::cout << "(JBD) output_step: " << output_step << std::endl;
   }
+  std::cout << "(JBD) QKV output: " << output << std::endl;
 
-  if (!_from) {
-      batch_size = query_dim.batch();
-      nntrainer::Tensor cache_key_0_step =
-          cache_key.getSharedDataTensor(cache_key_step_dim, 0, true);
-      nntrainer::Tensor cache_value_0_step =
-          cache_value.getSharedDataTensor(cache_value_step_dim, 0, true);
+  if (!_from)
+  {
+    batch_size = query_dim.batch();
+    nntrainer::Tensor cache_key_0_step =
+        cache_key.getSharedDataTensor(cache_key_step_dim, 0, true);
+    nntrainer::Tensor cache_value_0_step =
+        cache_value.getSharedDataTensor(cache_value_step_dim, 0, true);
 
     for (unsigned int batch = 1; batch < batch_size; ++batch) {
       nntrainer::Tensor cache_key_nth_step = cache_key.getSharedDataTensor(
@@ -466,15 +495,15 @@ void MHACoreLayer::compute_kcaches(
         }
         float *output_addr = out.getData<float>() + out_start_row_ * num_head;
 
-        futures.emplace_back(pool.submit_task([=]() {
+        // futures.emplace_back(pool.submit_task([=]() {
           nntrainer::compute_kcaches<uint16_t>(
             input_addr, cache_addr, output_addr, row_to_compute,
             num_head / group_size, head_dim, group_size, tile_size,
             local_window_size);
-        }));
+        // }));
       }
-      for (auto &fut : futures)
-        fut.get();
+      // for (auto &fut : futures)
+      //   fut.get();
     }
   } else if (in.getDataType() == ml::train::TensorDim::DataType::FP16) {
 #ifdef ENABLE_FP16
@@ -652,15 +681,18 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
     mask_from = T_from[batch];
     mask_to = T_to[batch];
 
+    // std::cout << "(JBD) before painting mask, mask_" << mask_ << std::endl;
+
     for (size_t i = from; i < to; i++)
     {
       for (size_t j = from; j < to; j++)
       {
         if (i >= mask_from && i < mask_to && j >= mask_from && j < mask_to)
-        for (size_t k = 0; k < num_heads_Q; k++)
-        {
-          mask_.setValue(0, 0, (i * to  + j), k, 0);
-        }
+          for (size_t k = 0; k < num_heads_Q; k++)
+          {
+            mask_.setValue(0, 0, (i * to + j), k, 0.0f);
+            // std::cout << "(JBD) painting mask,.. mask_" << mask_ << std::endl;
+          }
       }
     }
   }

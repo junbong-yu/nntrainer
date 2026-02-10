@@ -288,19 +288,10 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
                              std::to_string(BATCH_SIZE) + ")");
   }
 
-  // Allocate memory for input samples
-  float *input_sample =
-    (float *)malloc(sizeof(float) * BATCH_SIZE * MAX_SEQ_LEN);
-  if (!input_sample) {
-    throw std::runtime_error("Failed to allocate memory for input samples.");
-  }
-
-  // Initialize input_sample with zeros (padding)
-  memset(input_sample, 0, sizeof(float) * BATCH_SIZE * MAX_SEQ_LEN);
-
+  std::vector<std::vector<int32_t>> encoded_inputs(BATCH_SIZE);
   std::vector<unsigned int> input_lengths(BATCH_SIZE);
+  size_t max_input_len = 0;
 
-  // Process each prompt in the batch
   for (size_t batch_idx = 0; batch_idx < BATCH_SIZE; ++batch_idx) {
     const WSTR &prompt = prompts[batch_idx];
     const WSTR &system_prompt = system_prompts[batch_idx];
@@ -309,20 +300,33 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
 #if defined(_WIN32)
     std::wstring prompt_ = system_prompt + prompt + tail_prompt;
     std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    auto _input = tokenizer->Encode(converter.to_bytes(prompt_), true);
+    encoded_inputs[batch_idx] = tokenizer->Encode(converter.to_bytes(prompt_), true);
 #else
     std::string prompt_ = system_prompt + prompt + tail_prompt;
-    auto _input = tokenizer->Encode(prompt_, ADD_SPECIAL_TOKEN);
+    encoded_inputs[batch_idx] = tokenizer->Encode(prompt_, ADD_SPECIAL_TOKEN);
 #endif
 
-    // Calculate input length for this batch item
-    unsigned int input_len =
-      std::min((unsigned int)_input.size(), (unsigned int)MAX_SEQ_LEN);
+    unsigned int input_len = std::min((unsigned int)encoded_inputs[batch_idx].size(),
+                                      (unsigned int)MAX_SEQ_LEN);
     input_lengths[batch_idx] = input_len;
+    max_input_len = std::max(max_input_len, (size_t)input_len);
+  }
 
-    // Fill input_sample for this batch item
+  float *input_sample =
+    (float *)malloc(sizeof(float) * BATCH_SIZE * max_input_len);
+  if (!input_sample) {
+    throw std::runtime_error("Failed to allocate memory for input samples.");
+  }
+
+  std::fill(input_sample,
+            input_sample + BATCH_SIZE * max_input_len,
+            1.0f);
+            
+  for (size_t batch_idx = 0; batch_idx < BATCH_SIZE; ++batch_idx) {
+    unsigned int input_len = input_lengths[batch_idx];
     for (unsigned int i = 0; i < input_len; ++i) {
-      input_sample[batch_idx * MAX_SEQ_LEN + i] = static_cast<float>(_input[i]);
+      input_sample[batch_idx * max_input_len + i] =
+        static_cast<float>(encoded_inputs[batch_idx][i]);
     }
   }
 
@@ -330,12 +334,6 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
   input.push_back(input_sample);
 
   std::vector<float *> label; // Empty label for inference
-
-  // Find maximum input length for all batches
-  unsigned int max_input_len = 0;
-  for (unsigned int len : input_lengths) {
-    max_input_len = std::max(max_input_len, len);
-  }
 
   // Check if max_input_len is different from INIT_SEQ_LEN
   if (max_input_len != INIT_SEQ_LEN) {
@@ -349,12 +347,12 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
   // This performs a single forward pass for the entire prompt sequence to get
   // embeddings.
   // Create batch-wise from/to vectors for per-batch processing
-  // std::vector<unsigned int> from_values(BATCH_SIZE, 0);     // All start at 0
-  // std::vector<unsigned int> to_values = input_lengths;      // Each batch ends at its length
+  std::vector<unsigned int> from_values(BATCH_SIZE, 0);     // All start at 0
+  std::vector<unsigned int> to_values = input_lengths;      // Each batch ends at its length
 
   std::vector<float *> output = model->incremental_inference(
-    batch_count, input, label, max_input_len, 0, max_input_len, false);
-    // batch_count, input, label, max_input_len, from_values, to_values, false);
+    // batch_count, input, label, max_input_len, 0, max_input_len, false);
+    batch_count, input, label, max_input_len, from_values, to_values, false);
 
   free(input_sample);
 
