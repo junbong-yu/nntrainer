@@ -82,7 +82,7 @@ float compute_mse(const uint32_t M, const uint32_t N, std::vector<T> &ref_dst,
   auto sum = std::accumulate(dst.begin(), dst.end(), 0.0);
   auto sum_gt = std::accumulate(ref_dst.begin(), ref_dst.end(), 0.0);
   if (print) {
-    std::cout << "[INFO]            MSE: " << mean_squared_error
+    std::cout << "\t[INFO]            MSE: " << mean_squared_error
               << ", COS_SIM: " << cos_sim << ", MAX_DIFFER: " << max_differ
               << ", SUM: " << sum << ", SUM_GT: " << sum_gt << std::endl;
   }
@@ -114,7 +114,7 @@ float test_gemm_q4_0_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] gemm_q4_0: " << dt.count() << " ns "
+    std::cout << "\t[INFO] gemm_q4_0: " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -124,9 +124,148 @@ float test_gemm_q4_0_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
   return mean_squared_error;
 }
 
+float test_gemm_q4_0_fp32(const uint32_t M, const uint32_t K, const uint32_t N,
+                           const float *weights, const float *activations,
+                           std::vector<float> &ref_dst, bool print = false) {
+  int64_t q4_0_type_size = sizeof(block_q4_0_testonly);
+  int64_t q4_0_block_size = 32;
+  int64_t q4_0_num_blocks = (K * N) / q4_0_block_size;
+  size_t q4_0_data_size = q4_0_type_size * N / q4_0_block_size;
+  q4_0_data_size *= K;
+  std::vector<char> q4_0_offline_qWeight = std::vector<char>(q4_0_data_size);
+
+  char *q4_0_offline_qWeight_ptr = (char *)q4_0_offline_qWeight.data();
+  nntrainer::quantize_q4_0(weights, (void *)q4_0_offline_qWeight_ptr, N, K,
+                            nullptr);
+
+  std::vector<char> q4_0_repacked_qWeight = std::vector<char>(q4_0_data_size);
+  nntrainer::repack_q4_0(q4_0_repacked_qWeight.data(), q4_0_offline_qWeight_ptr,
+                         q4_0_data_size, N, K);
+  std::vector<float> dst(M * N);
+  auto t1 = high_resolution_clock::now();
+  nntrainer::gemm_q4_0<float>(M, N, K, activations, K,
+                              (void *)q4_0_repacked_qWeight.data(), N,
+                              dst.data(), N);
+  auto t2 = high_resolution_clock::now();
+  auto dt = duration_cast<nanoseconds>(t2 - t1);
+  if (print) {
+    std::cout << "\t[INFO] gemm_q4_0: " << dt.count() << " ns "
+              << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
+              << " ms " << std::endl;
+  }
+
+  auto mean_squared_error = compute_mse(M, N, ref_dst, dst, print);
+
+  return mean_squared_error;
+}
+
+static void run_q4_0_fp16_test(const uint32_t M, const uint32_t K,
+                                const uint32_t N, bool print = false) {
+  std::vector<_FP16> activation = generate_random_vector<_FP16>(M * K);
+  std::vector<float> weight = generate_random_vector<float>(N * K);
+  std::vector<_FP16> weight_fp16(N * K);
+  nntrainer::scopy(N * K, weight.data(), 1, weight_fp16.data(), 1);
+  std::vector<_FP16> ref_dst(M * N);
+
+  nntrainer::sgemm(0, false, true, M, N, K, 1.F, activation.data(), K,
+                   weight_fp16.data(), K, 0.F, ref_dst.data(), N);
+
+  int64_t q4_0_type_size = sizeof(block_q4_0_testonly);
+  int64_t q4_0_block_size = 32;
+  size_t q4_0_data_size = q4_0_type_size * N / q4_0_block_size;
+  q4_0_data_size *= K;
+  std::vector<char> q4_0_offline_qWeight(q4_0_data_size);
+
+  char *q4_0_offline_qWeight_ptr = (char *)q4_0_offline_qWeight.data();
+  nntrainer::quantize_q4_0(weight.data(), (void *)q4_0_offline_qWeight_ptr, N, K,
+                            nullptr);
+
+  std::vector<char> q4_0_repacked_qWeight(q4_0_data_size);
+  nntrainer::repack_q4_0(q4_0_repacked_qWeight.data(), q4_0_offline_qWeight_ptr,
+                         q4_0_data_size, N, K);
+
+  std::vector<_FP16> dst(M * N);
+  float q4_0_mse = 0;
+  const int TC = 20;
+  auto t1 = high_resolution_clock::now();
+  for (int tc = 0; tc < TC; ++tc) {
+    nntrainer::gemm_q4_0<_FP16>(M, N, K, activation.data(), K,
+                                (void *)q4_0_repacked_qWeight.data(), N,
+                                dst.data(), N);
+  }
+  auto t2 = high_resolution_clock::now();
+  auto dt = duration_cast<nanoseconds>(t2 - t1);
+
+  q4_0_mse += compute_mse<_FP16>(M, N, ref_dst, dst, false);
+  if (print) {
+    std::cout << "\t[INFO] q4_0xfp16:     " << dt.count() / TC << " ns "
+              << dt.count() / TC / 1'000 << " us "
+              << dt.count() / TC / 1'000'000 << " ms " << std::endl;
+    std::cout << "\t[INFO] q4_0_mse: " << q4_0_mse / TC << std::endl;
+  }
+
+  constexpr float eps = 1e-5;
+  ASSERT_LE(q4_0_mse / TC, eps * M * K * N);
+}
+
+static void run_q4_0_fp32_test(const uint32_t M, const uint32_t K,
+                                const uint32_t N, bool print = false) {
+  std::vector<float> activation = generate_random_vector<float>(M * K);
+  std::vector<float> weight = generate_random_vector<float>(N * K);
+  std::vector<float> ref_dst(M * N);
+
+  nntrainer::sgemm(0, false, true, M, N, K, 1.F, activation.data(), K,
+                   weight.data(), K, 0.F, ref_dst.data(), N);
+
+  int64_t q4_0_type_size = sizeof(block_q4_0_testonly);
+  int64_t q4_0_block_size = 32;
+  size_t q4_0_data_size = q4_0_type_size * N / q4_0_block_size;
+  q4_0_data_size *= K;
+  std::vector<char> q4_0_offline_qWeight(q4_0_data_size);
+
+  char *q4_0_offline_qWeight_ptr = (char *)q4_0_offline_qWeight.data();
+  nntrainer::quantize_q4_0(weight.data(), (void *)q4_0_offline_qWeight_ptr, N, K,
+                            nullptr);
+
+  std::vector<char> q4_0_repacked_qWeight(q4_0_data_size);
+  nntrainer::repack_q4_0(q4_0_repacked_qWeight.data(), q4_0_offline_qWeight_ptr,
+                         q4_0_data_size, N, K);
+
+  std::vector<float> dst(M * N);
+  float q4_0_mse = 0;
+  const int TC = 20;
+  auto t1 = high_resolution_clock::now();
+  for (int tc = 0; tc < TC; ++tc) {
+    nntrainer::gemm_q4_0<float>(M, N, K, activation.data(), K,
+                                (void *)q4_0_repacked_qWeight.data(), N,
+                                dst.data(), N);
+  }
+  auto t2 = high_resolution_clock::now();
+  auto dt = duration_cast<nanoseconds>(t2 - t1);
+
+  q4_0_mse += compute_mse(M, N, ref_dst, dst, false);
+  if (print) {
+    std::cout << "\t[INFO] q4_0xfp32:     " << dt.count() / TC << " ns "
+              << dt.count() / TC / 1'000 << " us "
+              << dt.count() / TC / 1'000'000 << " ms " << std::endl;
+    std::cout << "\t[INFO] q4_0_mse: " << q4_0_mse / TC << std::endl;
+  }
+
+  constexpr float eps = 1e-5;
+  ASSERT_LE(q4_0_mse / TC, eps * M * K * N);
+}
+
+TEST(nntrainer_cpu_backend_standalone, q4_0xfp16_GEMM_1024x3072x3072) {
+  run_q4_0_fp16_test(1024, 3072, 3072, true);
+}
+
+TEST(nntrainer_cpu_backend_standalone, q4_0xfp32_GEMM_1024x3072x3072) {
+  run_q4_0_fp32_test(1024, 3072, 3072, true);
+}
+
 float test_gemm_q6_K_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
-                          const float *weights, const _FP16 *activations,
-                          std::vector<_FP16> &ref_dst, bool print = false) {
+                           const float *weights, const _FP16 *activations,
+                           std::vector<_FP16> &ref_dst, bool print = false) {
   int64_t q6_k_block_size = 256;
   int64_t q6_k_type_size = sizeof(block_q6_K_testonly);
   int64_t num_blocks = (K * N) / q6_k_block_size;
@@ -144,7 +283,7 @@ float test_gemm_q6_K_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] gemm_q6_K: " << dt.count() << " ns "
+    std::cout << "\t[INFO] gemm_q6_K: " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -159,7 +298,7 @@ void run_quant_test_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
   nntrainer::init_backend();
 
   if (print) {
-    std::cout << "[INFO] Quantization Test (M:" << M << ", K:" << K
+    std::cout << "\t[INFO] Quantization Test (M:" << M << ", K:" << K
               << ", N:" << N << ")" << std::endl;
   }
   ///@note A(M, K) * W.T(N, K) = (M, N)
@@ -180,8 +319,8 @@ void run_quant_test_fp16(const uint32_t M, const uint32_t K, const uint32_t N,
   }
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
-  if (true) {
-    std::cout << "[INFO] hgemm :    " << dt.count() / 20 << " ns "
+  if (print) {
+    std::cout << "\t[INFO] hgemm :    " << dt.count() / 20 << " ns "
               << dt.count() / 20 / 1'000 << " us "
               << dt.count() / 20 / 1'000'000 << " ms " << std::endl;
   }
@@ -316,7 +455,7 @@ static void run_trigonometric_values_test(const unsigned int N,
   }
 
   if (print) {
-    std::cout << "[INFO] trigonometric_values: TEST CNT: " << TEST_CNT
+    std::cout << "\t[INFO] trigonometric_values: TEST CNT: " << TEST_CNT
               << ", N: " << N
               << ", Average ref_time: " << ref_mul_time.count() / TEST_CNT
               << " ns, Average test_time: " << mul_time.count() / TEST_CNT
@@ -359,7 +498,7 @@ std::tuple<float, uint32_t> test_gemm_qai8dxp_qsi4cxp_unpacked(
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] test_gemm_qai8dxp_qsi4cxp_unpacked: " << dt.count()
+    std::cout << "\t[INFO] test_gemm_qai8dxp_qsi4cxp_unpacked: " << dt.count()
               << " ns " << dt.count() / 1'000 << " us "
               << dt.count() / 1'000'000 << " ms " << std::endl;
   }
@@ -378,7 +517,7 @@ run_qai8dxp_qsi4cxp_test_unpacked(const uint32_t M, const uint32_t K,
                                   const uint32_t N, float &qai8dxp_qsi4cxp_mse,
                                   bool transB = true, bool print = false) {
   if (print) {
-    std::cout << "[INFO] qai8dxp_qsi4cxp Test (M:" << M << ", K:" << K
+    std::cout << "\t[INFO] qai8dxp_qsi4cxp Test (M:" << M << ", K:" << K
               << ", N:" << N << ")" << std::endl;
   }
   ///@note A(M, K) * W.T(N, K) = (M, N)
@@ -398,7 +537,7 @@ run_qai8dxp_qsi4cxp_test_unpacked(const uint32_t M, const uint32_t K,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] sgemm :    " << dt.count() << " ns "
+    std::cout << "\t[INFO] sgemm :    " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -455,7 +594,7 @@ float test_gemm_qai8dxp_qsi4cxp_packed(const uint32_t M, const uint32_t K,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] test_gemm_qai8dxp_qsi4cxp_packed: " << dt.count()
+    std::cout << "\t[INFO] test_gemm_qai8dxp_qsi4cxp_packed: " << dt.count()
               << " ns " << dt.count() / 1'000 << " us "
               << dt.count() / 1'000'000 << " ms " << std::endl;
   }
@@ -476,7 +615,7 @@ void run_qai8dxp_qsi4cxp_test_packed(const uint32_t M, const uint32_t K,
                                      uint32_t opt_kernel_idx,
                                      bool transB = true, bool print = false) {
   if (print) {
-    std::cout << "[INFO] run_qai8dxp_qsi4cxp_test_packed Test (M:" << M
+    std::cout << "\t[INFO] run_qai8dxp_qsi4cxp_test_packed Test (M:" << M
               << ", K:" << K << ", N:" << N
               << ") with opt_kernel_idx : " << opt_kernel_idx << std::endl;
   }
@@ -497,7 +636,7 @@ void run_qai8dxp_qsi4cxp_test_packed(const uint32_t M, const uint32_t K,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] sgemm :    " << dt.count() << " ns "
+    std::cout << "\t[INFO] sgemm :    " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -704,7 +843,7 @@ std::tuple<float, uint32_t> test_gemm_qsi8d32p_qsi4c32p_unpacked(
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] test_gemm_qsi8d32p_qsi4c32p_unpacked: " << dt.count()
+    std::cout << "\t[INFO] test_gemm_qsi8d32p_qsi4c32p_unpacked: " << dt.count()
               << " ns " << dt.count() / 1'000 << " us "
               << dt.count() / 1'000'000 << " ms " << std::endl;
   }
@@ -721,7 +860,7 @@ static uint32_t run_qsi8d32p_qsi4c32p_test_unpacked(
   const uint32_t M, const uint32_t K, const uint32_t N,
   float &qsi8d32p_qsi4c32p_mse, bool transB = true, bool print = false) {
   if (print) {
-    std::cout << "[INFO] qsi8d32p_qsi4c32p Test (M:" << M << ", K:" << K
+    std::cout << "\t[INFO] qsi8d32p_qsi4c32p Test (M:" << M << ", K:" << K
               << ", N:" << N << ")" << std::endl;
   }
 
@@ -738,7 +877,7 @@ static uint32_t run_qsi8d32p_qsi4c32p_test_unpacked(
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] sgemm :    " << dt.count() << " ns "
+    std::cout << "\t[INFO] sgemm :    " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -797,7 +936,7 @@ float test_gemm_qsi8d32p_qsi4c32p_packed(
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] test_gemm_qsi8d32p_qsi4c32p_packed: " << dt.count()
+    std::cout << "\t[INFO] test_gemm_qsi8d32p_qsi4c32p_packed: " << dt.count()
               << " ns " << dt.count() / 1'000 << " us "
               << dt.count() / 1'000'000 << " ms " << std::endl;
   }
@@ -817,7 +956,7 @@ void run_qsi8d32p_qsi4c32p_test_packed(const uint32_t M, const uint32_t K,
                                        uint32_t opt_kernel_idx,
                                        bool transB = true, bool print = false) {
   if (print) {
-    std::cout << "[INFO] run_qsi8d32p_qsi4c32p_test_packed Test (M:" << M
+    std::cout << "\t[INFO] run_qsi8d32p_qsi4c32p_test_packed Test (M:" << M
               << ", K:" << K << ", N:" << N
               << ") with opt_kernel_idx : " << opt_kernel_idx << std::endl;
   }
@@ -835,7 +974,7 @@ void run_qsi8d32p_qsi4c32p_test_packed(const uint32_t M, const uint32_t K,
   auto t2 = high_resolution_clock::now();
   auto dt = duration_cast<nanoseconds>(t2 - t1);
   if (print) {
-    std::cout << "[INFO] sgemm :    " << dt.count() << " ns "
+    std::cout << "\t[INFO] sgemm :    " << dt.count() << " ns "
               << dt.count() / 1'000 << " us " << dt.count() / 1'000'000
               << " ms " << std::endl;
   }
@@ -1006,9 +1145,9 @@ static void run_transform_osv32_to_qsi4c32p_test(const uint32_t K,
   auto transform_time = duration_cast<microseconds>(t1 - t0);
 
   if (print) {
-    std::cout << "[INFO] Transform time: " << transform_time.count() << " us"
+    std::cout << "\t[INFO] Transform time: " << transform_time.count() << " us"
               << std::endl;
-    std::cout << "[INFO] Packed size: " << packed_size << " bytes" << std::endl;
+    std::cout << "\t[INFO] Packed size: " << packed_size << " bytes" << std::endl;
   }
 
   // Step 4: Generate random FP32 activations
@@ -1032,7 +1171,7 @@ static void run_transform_osv32_to_qsi4c32p_test(const uint32_t K,
     cosine_similarity<float, float>(ref_dst.data(), qsi4c32p_dst.data(), M * N);
 
   if (print) {
-    std::cout << "[INFO] MSE: " << mean_squared_error
+    std::cout << "\t[INFO] MSE: " << mean_squared_error
               << ", Cosine Sim: " << cos_sim << std::endl;
   }
 
@@ -1112,7 +1251,7 @@ void run_gemm_benchmark_comparison(const uint32_t M, const uint32_t K,
     test_gemm_qsi8d32p_qsi4c32p_unpacked(
       M, K, N, weight.data(), activation.data(), ref_dst, true, false);
   if (print) {
-    std::cout << "[INFO] qsi8d32p_qsi4c32p optimal kernel index: "
+    std::cout << "\t[INFO] qsi8d32p_qsi4c32p optimal kernel index: "
               << opt_idx_qsi8d32p << std::endl;
   }
 
@@ -1143,7 +1282,7 @@ void run_gemm_benchmark_comparison(const uint32_t M, const uint32_t K,
     test_gemm_qai8dxp_qsi4cxp_unpacked(M, K, N, weight.data(),
                                        activation.data(), ref_dst, true, false);
   if (print) {
-    std::cout << "[INFO] qai8dxp_qsi4cxp optimal kernel index: "
+    std::cout << "\t[INFO] qai8dxp_qsi4cxp optimal kernel index: "
               << opt_idx_qai8dxp << std::endl;
   }
 
@@ -1180,7 +1319,7 @@ void run_gemm_benchmark_comparison(const uint32_t M, const uint32_t K,
   // Warm-up runs
   // ============================================================
   if (print) {
-    std::cout << "[INFO] Warm-up (" << warmup_iters << " iterations)..."
+    std::cout << "\t[INFO] Warm-up (" << warmup_iters << " iterations)..."
               << std::endl;
   }
   for (uint32_t i = 0; i < warmup_iters; ++i) {
