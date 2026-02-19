@@ -430,7 +430,7 @@ private:
 
   void compute_kcaches(nntrainer::Tensor &in, nntrainer::Tensor &cache,
                        nntrainer::Tensor &out, unsigned int from,
-                       size_t sequence_len, unsigned int num_heads,
+                       size_t sequence_len, size_t mask_size, unsigned int num_heads,
                        unsigned int group_size, unsigned int head_dim,
                        BS::thread_pool<> &pool);
 

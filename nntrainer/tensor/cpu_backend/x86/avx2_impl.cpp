@@ -1644,8 +1644,8 @@ void compute_kcaches(const float *in, const uint16_t *kcache, float *output,
             sum += in_ptr[i] * k_row[i];
 
           unsigned int idx = (row - start_row) * num_cache_head * gqa_size + n * gqa_size + g;
-          if (idx == 1)
-            std::cout << "idx is 1" << std::endl;
+          if (idx == 1231 || idx == 1232)
+            std::cout << "idx is either 1231 or 1232: " << idx << std::endl;
 
           output[(row - start_row) * num_cache_head * gqa_size + n * gqa_size +
                  g] = sum / sqrt((float)head_dim);
@@ -1653,6 +1653,8 @@ void compute_kcaches(const float *in, const uint16_t *kcache, float *output,
       }
     }
   }
+
+  return;
 }
 
 void compute_rotary_emb_value(unsigned int width, unsigned int dim,

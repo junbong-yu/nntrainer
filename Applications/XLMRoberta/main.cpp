@@ -230,6 +230,11 @@ int main(int argc, char *argv[]) {
       "4、在翻炒的同时,可以不时地往锅里加水,但不要太多 5、放入盐,炒匀 "
       "6、南瓜差不多软和绵了之后,就可以关火 7、撒入香葱,即可出锅";
 
+    // std::string input_text0 = "My name is James";
+    // std::string input_text1 = "hello";
+    // std::string input_text2 = "good night";
+    // std::string input_text3 = "I love you";    
+
     std::vector<std::string> input_texts;
     input_texts.push_back(input_text0);
     input_texts.push_back(input_text1);

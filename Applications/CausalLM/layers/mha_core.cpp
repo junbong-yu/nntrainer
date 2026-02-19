@@ -296,7 +296,7 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
     sink = context.getWeight(sink_idx);
   }
 
-#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
   std::cout.precision(10);
   std::cout << std::fixed;
@@ -338,9 +338,7 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
         << "____value" << i << ": " << ____value.getBatchSlice(i, 1);
 
     std::cout << std::endl;
-  }
-  
-  
+  }  
 #endif
 
   const unsigned int num_heads_Q =
@@ -435,7 +433,7 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
         cache_key, cache_value, cache_key_dim, cache_key_step_dim,
         cache_value_dim, cache_value_step_dim);
     }
-    std::cout << "(JBD) output_step: " << output_step << std::endl;
+    // std::cout << "(JBD) output_step: " << output_step << std::endl;
   }
   std::cout << "(JBD) QKV output: " << output << std::endl;
 
@@ -466,13 +464,13 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
 
 void MHACoreLayer::compute_kcaches(
   nntrainer::Tensor &in, nntrainer::Tensor &cache, nntrainer::Tensor &out,
-  unsigned int from, size_t sequence_len, unsigned int num_head,
+  unsigned int from, size_t sequence_len, size_t mask_size, unsigned int num_head,
   unsigned int group_size, unsigned int head_dim, BS::thread_pool<> &pool) {
 
   int tile_size = 8;
 
   if (in.getDataType() == ml::train::TensorDim::DataType::FP32) {
-    if (sequence_len == 1) {
+    if (mask_size == 1) {
       int row_to_compute = from + 1;
       nntrainer::compute_kcaches<uint16_t>(
         in.getData<float>(), cache.getData<uint16_t>(), out.getData<float>(),
@@ -481,18 +479,19 @@ void MHACoreLayer::compute_kcaches(
     } else {
       std::vector<std::future<void>> futures;
       int seq =
-        sequence_len < local_window_size ? sequence_len : local_window_size;
+        mask_size < local_window_size ? mask_size : local_window_size;
 
       for (int i = 0; i < seq; ++i) {
         float *input_addr = in.getData<float>() + num_head * head_dim * i;
         uint16_t *cache_addr = cache.getData<uint16_t>();
-        int row_to_compute = is_causal ? from + i + 1 : from + sequence_len;
+        int row_to_compute = is_causal ? from + i + 1 : from + mask_size;
         size_t out_start_row_ = 0;
         if (is_causal) {
           out_start_row_ = calc_attn_index(from + i) - calc_attn_index(from);
         } else {
           out_start_row_ = i * (from + sequence_len);
         }
+        std::cout << "kcompute out offset: " << out_start_row_ * num_head << std::endl;
         float *output_addr = out.getData<float>() + out_start_row_ * num_head;
 
         // futures.emplace_back(pool.submit_task([=]() {
@@ -520,7 +519,7 @@ void MHACoreLayer::compute_kcaches(
         __fp16 *out_ptr = out.getData<_FP16>() + n * group_size;
         for (int tile_off = 0; tile_off < tile_count; ++tile_off) {
           futures.emplace_back(pool.submit_task([=]() {
-            nntrainer::compute_kcaches(in_ptr, cache_ptr, out_ptr, num_rows,
+            nntrainer::compute_kcaches(in_ptr, cache_ptr, out_ptr, num_rows, num_rows,
                                        num_cache_head, head_dim, group_size,
                                        tile_off, tile_size, local_window_size);
           }));
@@ -556,7 +555,7 @@ void MHACoreLayer::compute_kcaches(
             __fp16 *out_ptr = output_addr + n * group_size;
             for (int tile_off = 0; tile_off < tile_count; ++tile_off) {
               nntrainer::compute_kcaches(
-                in_ptr, cache_ptr, out_ptr, num_rows, num_cache_head, head_dim,
+                in_ptr, cache_ptr, out_ptr, num_rows, num_rows, num_cache_head, head_dim,
                 group_size, tile_off, tile_size, local_window_size);
             }
           }
@@ -666,6 +665,8 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
           ? (((to - from) == 1) ? to : calc_attn_index(to) - calc_attn_index(from))
           : ((to - from) * to),
       num_heads_Q, query_step.getTensorType());
+      
+  out_.setValue((float)0);
 
   nntrainer::Tensor mask_ = nntrainer::Tensor(
       1, 1,
@@ -675,6 +676,7 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
       num_heads_Q, query_step.getTensorType());
 
   unsigned int mask_from, mask_to;
+  size_t i, j, k;
   if constexpr (std::is_same_v<T, std::vector<unsigned int>>)
   {
     mask_.setValue(std::numeric_limits<float>::lowest());
@@ -683,12 +685,12 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
 
     // std::cout << "(JBD) before painting mask, mask_" << mask_ << std::endl;
 
-    for (size_t i = from; i < to; i++)
+    for (i = from; i < to; i++)
     {
-      for (size_t j = from; j < to; j++)
+      for (j = from; j < to; j++)
       {
-        if (i >= mask_from && i < mask_to && j >= mask_from && j < mask_to)
-          for (size_t k = 0; k < num_heads_Q; k++)
+        if (j >= mask_from && j < mask_to)
+          for (k = 0; k < num_heads_Q; k++)
           {
             mask_.setValue(0, 0, (i * to + j), k, 0.0f);
             // std::cout << "(JBD) painting mask,.. mask_" << mask_ << std::endl;
@@ -697,24 +699,28 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
     }
   }
 
-  std::cout << "(JBD) before cpmute K, query_step" << query_step << std::endl;
-
-  std::cout << "(JBD) before cpmute K, mask_" << mask_ << std::endl;
+  // std::cout << "(JBD) before compute K, query_step" << query_step << std::endl;
+  // std::cout << "(JBD) before compute K, mask_" << mask_ << std::endl;
+  // std::cout << "(JBD) before compute K, out_" << out_ << std::endl;
 
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
-  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, num_heads_Q,
+  compute_kcaches(query_step, b_cached_key, out_, _from, to - from,
+                  to - from, num_heads_Q,
                   gqa_size, head_dim, pool);
+
+  // std::cout << "(JBD) before adding mask, out_" << out_ << std::endl;
 
   out_.add(mask_, out_);
 
-  std::cout << "(JBD) after cpmute K, out_" << out_ << std::endl;
+  // std::cout << "(JBD) after adding mask, out_" << out_ << std::endl;
 
   if (is_causal) {
     softmax_triangle(out_, to - from, num_heads_Q, from, pool);
   } else {
     softmax_full(out_, to - from, num_heads_Q, from, pool);
   }
+  // std::cout << "(JBD) after softmax, out_" << out_ << std::endl;
 
   compute_fp16vcache_transposed(out_, b_cached_value, attention_output_step,
                                 from, num_heads_KV, gqa_size, head_dim, to,
@@ -813,7 +819,7 @@ void MHACoreLayer::one_batch_incremental_forwarding(
 
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
-  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, num_heads_Q,
+  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, to - from, num_heads_Q,
                   gqa_size, head_dim, pool);
 
   if (is_causal) {

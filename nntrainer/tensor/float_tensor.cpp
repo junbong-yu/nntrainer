@@ -1508,12 +1508,12 @@ void FloatTensor::print(std::ostream &out) const {
   out << dim;
 
   if (len > 100) {  
-
-    out << "from 540 to 600" << "\n";
+    
+    out << "from 0 to 18" << "\n";
     out << '[' << std::endl;                 // 시작 기호와 개행  
 
     /* ----- 앞쪽 18개 ----- */  
-    for (int i = 540; i < 640; ++i) {  
+    for (int i = 0; i < 18; ++i) {  
         out << data[i];                     // 원소 출력  
         // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
         if ((i + 1) % 3 == 0) {  
@@ -1523,21 +1523,34 @@ void FloatTensor::print(std::ostream &out) const {
         }  
     }  
 
-    out << "... " << std::endl;              // 중간 요약 표시  
+    // out << "from 540 to 600" << "\n";
 
-    out << "from 3600 to 3700" << "\n";
-    /* ----- 앞쪽 18개 ----- */  
-    for (int i = 3600; i < 3700; ++i) {  
-        out << data[i];                     // 원소 출력  
-        // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
-        if ((i + 1) % 3 == 0) {  
-            out << std::endl;  
-        } else {  
-            out << ' ';  
-        }  
-    }  
+    // /* ----- 앞쪽 18개 ----- */  
+    // for (int i = 540; i < 640; ++i) {  
+    //     out << data[i];                     // 원소 출력  
+    //     // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
+    //     if ((i + 1) % 3 == 0) {  
+    //         out << std::endl;  
+    //     } else {  
+    //         out << ' ';  
+    //     }  
+    // }  
 
-    out << "... " << std::endl;              // 중간 요약 표시  
+    // out << "... " << std::endl;              // 중간 요약 표시  
+
+    // out << "from 124500 to 124600" << "\n";
+    // /* ----- 앞쪽 18개 ----- */  
+    // for (int i = 124500; i < 124600; ++i) {  
+    //     out << data[i];                     // 원소 출력  
+    //     // 3번째마다 개행, 마지막이 아니면 뒤에 공백  
+    //     if ((i + 1) % 3 == 0) {  
+    //         out << std::endl;  
+    //     } else {  
+    //         out << ' ';  
+    //     }  
+    // }  
+
+    out << "intil " << len << " ... : " << std::endl;              // 중간 요약 표시  
 
     /* ----- 뒤쪽 18개 ----- */  
     for (int i = len - 18; i < len; ++i) {  
