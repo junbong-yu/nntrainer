@@ -5,6 +5,7 @@ executable_src = [
     meson.current_source_dir() / 'position.cpp',
     meson.current_source_dir() / 'token_type.cpp',
     meson.current_source_dir() / 'util.cpp',
+    meson.current_source_dir() / 'fc_layer_single.cpp',
 ]
 
 # Include directories

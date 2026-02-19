@@ -38,6 +38,7 @@
 #include <llm_util.hpp>
 #include <position.h>
 #include <token_type.h>
+#include <fc_layer_single.h>
 
 using causallm::json;
 using causallm::ModelType;
@@ -185,15 +186,15 @@ namespace xlmroberta
     std::vector<LayerHandle> layers;
 
     // Create output dense layer
-    std::vector<std::string> output_param = {
+    std::vector<std::string> pooler_dense_param = {
         withKey("name", "pooler_dense"),
         withKey("unit", DIM),
         withKey("input_layers", "encoder_" + std::to_string(NUM_LAYERS - 1) + "_output_layer_norm"),
         withKey("weight_initializer", "xavier_uniform"),
         withKey("bias_initializer", "zeros")};
 
-    printInputLayers(output_param, "pooler_dense");
-    layers.push_back(createLayer("fully_connected", output_param));
+    printInputLayers(pooler_dense_param, "pooler_dense");
+    layers.push_back(createLayer("fully_connected_single", pooler_dense_param));
 
     // Create output activation
     std::vector<std::string> activation_param = {
@@ -222,6 +223,8 @@ namespace xlmroberta
       // roberta custom layers
       app_context->registerFactory(nntrainer::createLayer<xlmroberta::Position>);
       app_context->registerFactory(nntrainer::createLayer<xlmroberta::TokenType>);
+      app_context->registerFactory(nntrainer::createLayer<xlmroberta::FullyConnectedSingleLayer>);
+
 
       // causallm custom layers
       // app_context->registerFactory(nntrainer::createLayer<causallm::EmbeddingLayer>);
