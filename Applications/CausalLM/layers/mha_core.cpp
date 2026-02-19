@@ -296,7 +296,7 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
     sink = context.getWeight(sink_idx);
   }
 
-// #define DEBUG
+#define DEBUG
 #ifdef DEBUG
   std::cout.precision(10);
   std::cout << std::fixed;
@@ -433,7 +433,7 @@ void MHACoreLayer::internal_incremental_forwarding(nntrainer::RunLayerContext &c
         cache_key, cache_value, cache_key_dim, cache_key_step_dim,
         cache_value_dim, cache_value_step_dim);
     }
-    // std::cout << "(JBD) output_step: " << output_step << std::endl;
+    std::cout << "(JBD) output_step: " << output_step << std::endl;
   }
   std::cout << "(JBD) QKV output: " << output << std::endl;
 
@@ -491,7 +491,7 @@ void MHACoreLayer::compute_kcaches(
         } else {
           out_start_row_ = i * (from + sequence_len);
         }
-        std::cout << "kcompute out offset: " << out_start_row_ * num_head << std::endl;
+
         float *output_addr = out.getData<float>() + out_start_row_ * num_head;
 
         // futures.emplace_back(pool.submit_task([=]() {
@@ -615,8 +615,6 @@ void MHACoreLayer::one_batch_incremental_forwarding(
   unsigned int from = _from;
   unsigned int to = _to;
 
-  std::cout << "\n(JBD) from: " << from << ", to: " << to << std::endl;
-
   check_max_timestep(_from, from, to); 
 
     /** 1. Load Input Tensors of this batch : b_ denotes a Tensor for this batch
@@ -709,18 +707,18 @@ NNTR_THROW_IF(true, std::invalid_argument) << "enable-fp16 is not set!";
                   to - from, num_heads_Q,
                   gqa_size, head_dim, pool);
 
-  // std::cout << "(JBD) before adding mask, out_" << out_ << std::endl;
+  std::cout << "(JBD) after compute K, out_" << out_ << std::endl;
 
   out_.add(mask_, out_);
 
-  // std::cout << "(JBD) after adding mask, out_" << out_ << std::endl;
+  std::cout << "(JBD) after adding mask, out_" << out_ << std::endl;
 
   if (is_causal) {
     softmax_triangle(out_, to - from, num_heads_Q, from, pool);
   } else {
     softmax_full(out_, to - from, num_heads_Q, from, pool);
   }
-  // std::cout << "(JBD) after softmax, out_" << out_ << std::endl;
+  std::cout << "(JBD) after softmax, out_" << out_ << std::endl;
 
   compute_fp16vcache_transposed(out_, b_cached_value, attention_output_step,
                                 from, num_heads_KV, gqa_size, head_dim, to,

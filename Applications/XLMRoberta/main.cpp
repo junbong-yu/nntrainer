@@ -215,11 +215,7 @@ int main(int argc, char *argv[]) {
       "Instruct: Given a web search query, retrieve relevant passages that "
       "answer the query\nQuery: 南瓜的家常做法";
     std::string input_text2 =
-      "As a general guideline, the CDC's average requirement of protein for "
-      "women ages 19 to 70 is 46 grams per day. But, as you can see from this "
-      "chart, you'll need to increase that if you're expecting or training for "
-      "a marathon. Check out the chart below to see how much protein you "
-      "should be eating each day";
+      "As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.";
     std::string input_text3 =
       "1.清炒南瓜丝 原料:嫩南瓜半个 调料:葱、盐、白糖、鸡精 做法: "
       "1、南瓜用刀薄薄的削去表面一层皮,用勺子刮去瓤 "

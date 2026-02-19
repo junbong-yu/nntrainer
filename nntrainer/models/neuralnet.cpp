@@ -510,22 +510,24 @@ sharedConstTensors NeuralNetwork::incremental_forwarding(
   }
 
   std::function<void(std::shared_ptr<LayerNode>, bool)> forwarding_op =
-    [this, from, to, stop_cb, fsu_mode,
-     lookahead](std::shared_ptr<LayerNode> node, bool training) -> void {
+      [this, from, to, stop_cb, fsu_mode,
+       lookahead](std::shared_ptr<LayerNode> node, bool training) -> void
+  {
     PROFILE_MEM_ANNOTATE("Forwarding for layer: " + node->getName());
 
     auto f = std::get<0>(node->getExecutionOrder());
     if (exec_mode == ExecutionMode::TRAIN or
-        (exec_mode == ExecutionMode::INFERENCE and !fsu_mode)) {
+        (exec_mode == ExecutionMode::INFERENCE and !fsu_mode))
+    {
       model_graph.flushCacheExcept(f);
 
       if (node->getType() == "mha_core")
         node->incremental_forwarding(from, to, training);
-      else {
-        std::cout << "from: " << *(std::min_element(from.begin(), from.end())) << " to: " << *(std::max_element(to.begin(), to.end())) << std::endl;
+      else
         node->incremental_forwarding(*(std::min_element(from.begin(), from.end())), *(std::max_element(to.begin(), to.end())), training);
-        }
-      } else {
+    }
+    else
+    {
       model_graph.checkLoadComplete(f);
       node->incremental_forwarding(from, to, training);
       model_graph.inActive(f);
@@ -534,7 +536,7 @@ sharedConstTensors NeuralNetwork::incremental_forwarding(
   };
 
   return model_graph.incremental_forwarding(from, to, training, forwarding_op,
-                                             stop_cb, userdata);
+                                            stop_cb, userdata);
 }
 
 sharedConstTensors NeuralNetwork::incremental_forwarding(
@@ -1377,6 +1379,13 @@ std::vector<float *> NeuralNetwork::incremental_inference(
 
   for (auto &out : output_tensors) {
     auto out_t = *out.get();
+    
+    std::cout << "out_t: " << out_t.getBatchSlice(0,1) << std::endl;
+    std::cout << "out_t: " << out_t.getBatchSlice(1,1) << std::endl;
+    std::cout << "out_t: " << out_t.getBatchSlice(2,1) << std::endl;
+    std::cout << "out_t: " << out_t.getBatchSlice(3,1) << std::endl;
+
+
     float *last_out_buf_data;
 
     if (output_hidden_state) {

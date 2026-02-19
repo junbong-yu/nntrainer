@@ -263,7 +263,7 @@ void FullyConnectedLayer::incremental_forwarding(RunLayerContext &context,
   hidden_step_dim.batch(1);
   hidden_step_dim.height(to - from);
 
-  #define DEBUG
+// #define DEBUG
 #ifdef DEBUG
   std::cout.precision(10);
   std::cout << std::fixed;
@@ -326,7 +326,7 @@ void FullyConnectedLayer::incremental_forwarding(RunLayerContext &context,
     }
   }
 
-#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
   std::cout.precision(10);
   std::cout << std::fixed;

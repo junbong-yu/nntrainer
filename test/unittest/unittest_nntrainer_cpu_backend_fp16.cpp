@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+deb// SPDX-License-Identifier: Apache-2.0
 /**
  * @file	unittest_nntrainer_cpu_backend_fp16.cpp
  * @date	03 April 2025

@@ -38,14 +38,14 @@ print(input_texts)
 
 # tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-large-instruct')
 tokenizer = AutoTokenizer.from_pretrained("/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct")
-model = AutoModel.from_pretrained("/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct")
+model = AutoModel.from_pretrained("/home/junbong/src/AI/nntrainer/Applications/XLMRoberta/huggingface/multilingual-e5-large-instruct", dtype="float", trust_remote_code=True)
 
 # print(model)
-for param_tensor in model.state_dict():
-     weight = model.state_dict()[param_tensor]
-     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-     print(weight)     
-     print("----------------------------------------------")
+# for param_tensor in model.state_dict():
+#      weight = model.state_dict()[param_tensor]
+#      print(param_tensor, "\t", model.state_dict()[param_tensor].size())
+#      print(weight)     
+#      print("----------------------------------------------")
 
 # # for name, param in model.state_dict().items():
 #     print(f"{name}: {param.data_ptr()}")
@@ -53,10 +53,15 @@ for param_tensor in model.state_dict():
 # Tokenize the input texts
 batch_dict = tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
 print("Printing Result:")
-outputs = model(**batch_dict)
+outputs = model(**batch_dict, output_hidden_states=True)
+
+print("")
 print("pooler_output: ")
 print(outputs.pooler_output.shape)
 print(outputs.pooler_output)
+for i in range(outputs.pooler_output.shape[0]):
+    pooler_output = outputs.pooler_output[i]
+    print(f"Batch {i}: {pooler_output}")
 print("----------------------------------------------")
 
 embeddings = average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
