@@ -219,7 +219,7 @@ public:
    * @retval output tensors
    */
   sharedConstTensors incremental_forwarding(
-    unsigned int from, unsigned int to, bool training = false,
+    bool training = false,
     std::function<void(std::shared_ptr<LayerNode>, bool)> forwarding_op =
       [](std::shared_ptr<LayerNode>, bool) {},
     std::function<bool(void *userdata)> stop_cb =
