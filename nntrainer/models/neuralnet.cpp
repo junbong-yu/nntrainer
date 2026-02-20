@@ -473,8 +473,8 @@ sharedConstTensors NeuralNetwork::incremental_forwarding(
     }
   };
 
-  return model_graph.incremental_forwarding(from, to, training, forwarding_op,
-                                            stop_cb, userdata);
+  return model_graph.incremental_forwarding(training, forwarding_op, stop_cb,
+                                            userdata);
 }
 
 sharedConstTensors
@@ -492,6 +492,54 @@ NeuralNetwork::incremental_forwarding(unsigned int from, unsigned int to,
 
   model_graph.setInputsLabels(input, label);
 
+  return incremental_forwarding(from, to, training);
+}
+
+sharedConstTensors NeuralNetwork::incremental_forwarding(
+  const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+  bool training, std::function<bool(void *userdata)> stop_cb, void *userdata) {
+
+  unsigned int lookahead = std::get<props::FsuLookahead>(model_flex_props);
+  bool fsu_mode = std::get<props::Fsu>(model_flex_props);
+
+  if (fsu_mode) {
+    for (unsigned int i = 0; i < lookahead; ++i) {
+      model_graph.LoadTensors(i);
+    }
+  }
+
+  std::function<void(std::shared_ptr<LayerNode>, bool)> forwarding_op =
+    [this, from, to, stop_cb, fsu_mode,
+     lookahead](std::shared_ptr<LayerNode> node, bool training) -> void {
+    PROFILE_MEM_ANNOTATE("Forwarding for layer: " + node->getName());
+
+    auto f = std::get<0>(node->getExecutionOrder());
+    if (exec_mode == ExecutionMode::TRAIN or
+        (exec_mode == ExecutionMode::INFERENCE and !fsu_mode)) {
+      model_graph.flushCacheExcept(f);
+
+      if (node->getType() == "mha_core")
+        node->incremental_forwarding(from, to, training);
+      else
+        node->incremental_forwarding(
+          *(std::min_element(from.begin(), from.end())),
+          *(std::max_element(to.begin(), to.end())), training);
+    } else {
+      model_graph.checkLoadComplete(f);
+      node->incremental_forwarding(from, to, training);
+      model_graph.inActive(f);
+      model_graph.LoadTensors(f + lookahead);
+    }
+  };
+
+  return model_graph.incremental_forwarding(training, forwarding_op, stop_cb,
+                                            userdata);
+}
+
+sharedConstTensors NeuralNetwork::incremental_forwarding(
+  const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+  sharedConstTensors input, sharedConstTensors label, bool training) {
+  model_graph.setInputsLabels(input, label);
   return incremental_forwarding(from, to, training);
 }
 
@@ -1122,6 +1170,66 @@ sharedConstTensors NeuralNetwork::incremental_inference(
   return out;
 }
 
+sharedConstTensors NeuralNetwork::incremental_inference(
+  sharedConstTensors X, unsigned int init_seq_len,
+  const std::vector<unsigned int> &from, const std::vector<unsigned int> &to) {
+  if (model_graph.getBatchSize() != X[0]->batch()) {
+    model_graph.setBatchSize(X[0]->batch());
+  }
+
+  sharedConstTensors out;
+  if (!validateInput(X))
+    throw std::invalid_argument("Input validation failed.");
+
+  if (!from.empty() && from[0] == 0) {
+    model_graph.allocateTensors(ExecutionMode::INFERENCE);
+  }
+
+  int nn_forward;
+  PROFILE_TIME_REGISTER_EVENT(nn_forward, "nn_forward");
+  PROFILE_TIME_START(nn_forward);
+
+  out = incremental_forwarding(from, to, X, {}, false);
+
+  PROFILE_TIME_END(nn_forward);
+
+  /** @todo: deallocate tensor after incremental inference **/
+  /** Clear the set inputs and labels */
+  model_graph.setInputsLabels({}, {});
+
+  return out;
+}
+
+sharedConstTensors NeuralNetwork::incremental_inference(
+  sharedConstTensors X, sharedConstTensors label, unsigned int init_seq_len,
+  const std::vector<unsigned int> &from, const std::vector<unsigned int> &to) {
+  if (model_graph.getBatchSize() != X[0]->batch()) {
+    model_graph.setBatchSize(X[0]->batch());
+  }
+
+  sharedConstTensors out;
+  if (!validateInput(X))
+    throw std::invalid_argument("Input validation failed.");
+
+  if (!from.empty() && from[0] == 0) {
+    model_graph.allocateTensors(ExecutionMode::INFERENCE);
+  }
+
+  int nn_forward;
+  PROFILE_TIME_REGISTER_EVENT(nn_forward, "nn_forward");
+  PROFILE_TIME_START(nn_forward);
+
+  out = incremental_forwarding(from, to, X, label, false);
+
+  PROFILE_TIME_END(nn_forward);
+
+  /** @todo: deallocate tensor after incremental inference **/
+  /** Clear the set inputs and labels */
+  model_graph.setInputsLabels({}, {});
+
+  return out;
+}
+
 std::vector<float *> NeuralNetwork::incremental_inference(
   unsigned int batch_size, const std::vector<float *> &input,
   const std::vector<float *> &label, unsigned int init_seq_len,
@@ -1172,6 +1280,14 @@ std::vector<float *> NeuralNetwork::incremental_inference(
     } else {
       last_out_buf_data = new float[batch_size * out_t.width()];
 
+      /**
+       * If the output tensor's height (sequence dimension) is 1, it
+       * indicates a reduced/pooled output (e.g., Pooling,
+       * EmbeddingNormalize). In this case, the output for any 'step' is
+       * located at index 0. Otherwise, we access the specific step index
+       * corresponding to the last processed token.
+       */
+      unsigned int effective_step = (out_t.getDim().height() == 1) ? 0 : step;
       for (unsigned int batch = 0; batch < batch_size; ++batch) {
         if (out->getDataType() == ml::train::TensorDim::DataType::FP16) {
 #ifdef ENABLE_FP16
@@ -1213,6 +1329,95 @@ std::vector<float *> NeuralNetwork::incremental_inference(
   // std::cout <<"prepare : "<< prepare.count() << " run_inf : "<<
   // run_inf.count() << " out_gen : "<< out_gen.count()<<std::endl; std::cout <<
   // "-------- net_inference: "<< net_gen.count() << std::endl;
+
+  return output;
+}
+
+std::vector<float *> NeuralNetwork::incremental_inference(
+  unsigned int batch_size, const std::vector<float *> &input,
+  const std::vector<float *> &label, unsigned int init_seq_len,
+  const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+  bool output_hidden_state) {
+
+  if (from.size() != batch_size || to.size() != batch_size) {
+    throw std::invalid_argument(
+      "from and to vectors must have size equal to batch_size");
+  }
+
+  sharedConstTensors input_tensors, output_tensors;
+  auto in_dim = getInputDimension();
+
+  input_tensors.reserve(input.size());
+  for (unsigned int idx = 0; idx < in_dim.size(); idx++) {
+    in_dim[idx].batch(batch_size);
+    input_tensors.emplace_back(MAKE_SHARED_TENSOR(Tensor::Map(
+      input[idx], in_dim[idx].getDataLen() * sizeof(float), in_dim[idx], 0)));
+  }
+
+  if (!label.empty()) {
+    sharedConstTensors label_tensors;
+    auto label_dim = getOutputDimension();
+    label_tensors.reserve(label.size());
+    for (unsigned int idx = 0; idx < label_dim.size(); idx++) {
+      label_dim[idx].batch(batch_size);
+      label_tensors.emplace_back(MAKE_SHARED_TENSOR(
+        Tensor::Map(label[idx], label_dim[idx].getDataLen() * sizeof(float),
+                    label_dim[idx], 0)));
+    }
+    output_tensors = incremental_inference(input_tensors, label_tensors,
+                                           init_seq_len, from, to);
+  } else {
+    output_tensors =
+      incremental_inference(input_tensors, init_seq_len, from, to);
+  }
+
+  std::vector<float *> output;
+
+  ///@note Always we take the first position of output
+  // unsigned int step = ((to - from) == 0) ? 0 : (to - from) - 1;
+  unsigned int step = 0;
+
+  for (auto &out : output_tensors) {
+    auto out_t = *out.get();
+
+    float *last_out_buf_data;
+
+    if (output_hidden_state) {
+      last_out_buf_data = out_t.getData();
+    } else {
+      last_out_buf_data = new float[batch_size * out_t.width()];
+
+      std::vector<unsigned int> steps(batch_size);
+      for (unsigned int b = 0; b < batch_size; ++b) {
+        steps[b] = ((to[b] - from[b]) == 0) ? 0 : (to[b] - from[b]) - 1;
+      }
+
+      for (unsigned int b = 0; b < batch_size; ++b) {
+        unsigned int effective_step =
+          (out_t.getDim().height() == 1) ? 0 : steps[b];
+
+        if (out->getDataType() == ml::train::TensorDim::DataType::FP16) {
+#ifdef ENABLE_FP16
+          const _FP16 *out_t_batch_ptr = out_t.getData<_FP16>() +
+                                         b * out_t.getDim().getFeatureLen() +
+                                         step * out_t.width();
+          scopy(out_t.width(), out_t_batch_ptr, 1,
+                last_out_buf_data + b * out_t.width(), 1);
+#else
+          throw std::invalid_argument("Error: enable-fp16 is not set");
+#endif
+        } else if (out->getDataType() == ml::train::TensorDim::DataType::FP32) {
+          const float *out_t_batch_ptr = out_t.getData() +
+                                         b * out_t.getDim().getFeatureLen() +
+                                         step * out_t.width();
+          scopy(out_t.width(), out_t_batch_ptr, 1,
+                last_out_buf_data + b * out_t.width(), 1);
+        }
+      }
+    }
+
+    output.push_back(last_out_buf_data);
+  }
 
   return output;
 }

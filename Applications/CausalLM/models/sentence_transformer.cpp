@@ -353,12 +353,24 @@ std::vector<float *> SentenceTransformer::encode(const std::vector<WSTR> prompts
 
   std::vector<float *> label; // Empty label for inference
 
+  // Check if max_input_len is different from INIT_SEQ_LEN
+  if (max_input_len != INIT_SEQ_LEN) {
+    throw std::runtime_error("max_input_len (" + std::to_string(max_input_len) +
+                             ") is different from INIT_SEQ_LEN (" +
+                             std::to_string(INIT_SEQ_LEN) + ")");
+  }
+
+  // Create batch-wise from/to vectors for per-batch processing
+  std::vector<unsigned int> from_values(BATCH_SIZE, 0); // All start at 0
+  std::vector<unsigned int> to_values =
+    input_lengths; // Each batch ends at its length
+
   // Run incremental inference for the prefill stage
   // start: 0, end: max_input_len (process all tokens at once)
   // This performs a single forward pass for the entire prompt sequence to get
   // embeddings.
   std::vector<float *> output = model->incremental_inference(
-    batch_count, input, label, max_input_len, 0, max_input_len, false);
+    batch_count, input, label, max_input_len, from_values, to_values, false);
 
   free(input_sample);
 

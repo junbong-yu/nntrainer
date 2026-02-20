@@ -417,7 +417,7 @@ sharedConstTensors NetworkGraph::forwarding(
 }
 
 sharedConstTensors NetworkGraph::incremental_forwarding(
-  unsigned int from, unsigned int to, bool training,
+  bool training,
   std::function<void(std::shared_ptr<LayerNode>, bool)> forwarding_op,
   std::function<bool(void *userdata)> stop_cb, void *userdata) {
   for (auto iter = cbegin(); iter != cend() && !stop_cb(userdata); iter++) {
