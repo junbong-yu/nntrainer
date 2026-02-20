@@ -226,6 +226,29 @@ public:
   };
 
   /**
+   * @brief     Incremental forward Propagation of a layer with batch-wise
+   * from/to
+   * @param     context Context of the layer
+   * @param     from vector of start steps for each batch
+   * @param     to vector of end steps for each batch
+   * @param     training true if training, false if inference
+   *
+   * @note      Default implementation throws exception - layers should
+   * override this for batch-wise optimization
+   * @details   context provides access to the weights (if any), inputs,
+   * outputs, and tensors (if any) for the layer. Input and output dimensions
+   * can be access from the inputs/outputs tensors themselves.
+   */
+  virtual void incremental_forwarding(RunLayerContext &context,
+                                      const std::vector<unsigned int> &from,
+                                      const std::vector<unsigned int> &to,
+                                      bool training) {
+    throw std::invalid_argument(
+      "incremental_forwarding with vector from/to not implemented for layer " +
+      getType());
+  };
+
+  /**
    * @brief     calc the derivative to be passed to the previous layer
    * @param     context Context of the layer
    * @note      Return derivatives must be set in input gradient tensors.

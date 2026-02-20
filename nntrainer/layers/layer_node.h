@@ -318,6 +318,18 @@ public:
                               bool training = true);
 
   /**
+   * @brief     Incremental forward Propagation with batch-wise from/to
+   * @param     from vector of start steps for each batch
+   * @param     to vector of end steps for each batch
+   * @param     training true if training, false if inference
+   *
+   * @details   Calls layer's incremental_forwarding with per-batch parameters
+   */
+  void incremental_forwarding(const std::vector<unsigned int> &from,
+                              const std::vector<unsigned int> &to,
+                              bool training = true);
+
+  /**
    * @brief     calc the derivative to be passed to the previous layer
    *
    * @details   context provides access to the weights (if any), inputs,

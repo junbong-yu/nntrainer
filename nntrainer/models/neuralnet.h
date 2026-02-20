@@ -239,6 +239,12 @@ public:
 
   /**
    * @brief     Incremental forward Propagation of the neural network
+   * @param[in] from Starting step index for incremental forwarding
+   * @param[in] to Ending step index for incremental forwarding
+   * @param[in] training True if in training mode, false for inference
+   * @param[in] stop_cb Callback function to decide stop or not
+   * @param[in] user_data User data to be used in stop_cb
+   * @retval    List of Output Tensors
    */
   sharedConstTensors incremental_forwarding(
     unsigned int from, unsigned int to, bool training = true,
@@ -248,14 +254,48 @@ public:
 
   /**
    * @brief     Incremental forward Propagation of the neural network
+   * @param[in] from Starting step index for incremental forwarding
+   * @param[in] to Ending step index for incremental forwarding
    * @param[in] input List of Input Tensors taken by the neural network
    * @param[in] label List of Label Tensors for the model
+   * @param[in] training True if in training mode, false for inference
    * @retval    List of Output Tensors
    */
   sharedConstTensors incremental_forwarding(unsigned int from, unsigned int to,
                                             sharedConstTensors input,
                                             sharedConstTensors label = {},
                                             bool training = true);
+
+  /**
+   * @brief     Incremental forward Propagation with batch-wise from/to
+   * @param[in] from Vector of starting step indices for batch-wise forwarding
+   * @param[in] to Vector of ending step indices for batch-wise forwarding
+   * @param[in] training True if in training mode, false for inference
+   * @param[in] stop_cb Callback function to decide stop or not
+   * @param[in] user_data User data to be used in stop_cb
+   * @retval    List of Output Tensors
+   */
+  sharedConstTensors incremental_forwarding(
+    const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+    bool training = true,
+    std::function<bool(void *userdata)> stop_cb =
+      [](void *user_data) { return false; },
+    void *user_data = nullptr);
+
+  /**
+   * @brief     Incremental forward Propagation with batch-wise from/to
+   * @param[in] from Vector of starting step indices for batch-wise forwarding
+   * @param[in] to Vector of ending step indices for batch-wise forwarding
+   * @param[in] input List of Input Tensors taken by the neural network
+   * @param[in] label List of Label Tensors for the model
+   * @param[in] training True if in training mode, false for inference
+   * @retval    List of Output Tensors
+   */
+  sharedConstTensors
+  incremental_forwarding(const std::vector<unsigned int> &from,
+                         const std::vector<unsigned int> &to,
+                         sharedConstTensors input,
+                         sharedConstTensors label = {}, bool training = true);
 
   /**
    * @brief     Backward Propagation of the neural network
@@ -400,6 +440,32 @@ public:
                                            unsigned int from, unsigned int to);
 
   /**
+   * @brief     Run NeuralNetwork incremental inference with batch-wise from/to
+   * @param[in] X input tensor
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of current working step indices
+   * @param[in] to vector of next working step indices
+   * @retval shared_ptr<const Tensor>
+   */
+  sharedConstTensors
+  incremental_inference(sharedConstTensors X, unsigned int init_seq_len,
+                        const std::vector<unsigned int> &from,
+                        const std::vector<unsigned int> &to);
+
+  /**
+   * @brief     Run NeuralNetwork incremental inference with batch-wise from/to
+   * @param[in] X input tensor
+   * @param[in] label label tensor
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of current working step indices
+   * @param[in] to vector of next working step indices
+   * @retval shared_ptr<const Tensor>
+   */
+  sharedConstTensors incremental_inference(
+    sharedConstTensors X, sharedConstTensors label, unsigned int init_seq_len,
+    const std::vector<unsigned int> &from, const std::vector<unsigned int> &to);
+
+  /**
    * @brief     Run the incremental inference of the model
    * @param[in] batch batch size of current input
    * @param[in] input inputs as a list of each input data
@@ -418,6 +484,25 @@ public:
                         unsigned int init_seq_len, unsigned int from,
                         unsigned int to,
                         bool output_hidden_state = false) override;
+
+  /**
+   * @brief     Run the incremental inference with batch-wise from/to
+   * @param[in] batch batch size of current input
+   * @param[in] input inputs as a list of each input data
+   * @param[in] label labels as a list of each label data
+   * @param[in] init_seq_len initial sequence length
+   * @param[in] from vector of start steps for each batch
+   * @param[in] to vector of end steps for each batch
+   * @param[in] output_hidden_state return last hidden state if true else return
+   * all hidden state
+   * @retval list of output as float *
+   * @note The output memory must not be freed by the caller
+   */
+  std::vector<float *> incremental_inference(
+    unsigned int batch, const std::vector<float *> &input,
+    const std::vector<float *> &label, unsigned int init_seq_len,
+    const std::vector<unsigned int> &from, const std::vector<unsigned int> &to,
+    bool output_hidden_state = false) override;
 
   /**
    * @brief     reset input dimensions of a model
