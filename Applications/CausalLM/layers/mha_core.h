@@ -224,9 +224,9 @@ public:
   WIN_EXPORT void forwarding(nntrainer::RunLayerContext &context,
                              bool training) override;
 
+  template <typename T>
   void one_batch_incremental_forwarding(
-    const unsigned int batch, const unsigned int _from, const unsigned int from,
-    const unsigned int to, nntrainer::Tensor &query_step,
+    const unsigned int batch, T T_from, T T_to, nntrainer::Tensor &query_step,
     nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
     nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
     nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
@@ -234,21 +234,35 @@ public:
     ml::train::TensorDim &cache_value_dim,
     ml::train::TensorDim &cache_value_step_dim);
 
+  template <typename T>
   void one_batch_incremental_forwarding(
-    const unsigned int batch, const unsigned int _from, const unsigned int from,
-    const unsigned int to, nntrainer::Tensor &query_step,
+    const unsigned int batch, T T_from, T T_to, nntrainer::Tensor &query_step,
     nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
     nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
     nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
     ml::train::TensorDim &cache_key_step_dim,
     ml::train::TensorDim &cache_value_dim,
     ml::train::TensorDim &cache_value_step_dim, nntrainer::Tensor &sink_step);
+
   /**
    * @copydoc Layer::calcDerivative(RunLayerContext &context)
    */
   WIN_EXPORT void incremental_forwarding(nntrainer::RunLayerContext &context,
                                          unsigned int from, unsigned int to,
                                          bool training) override;
+
+  /**
+   * @copydoc Layer::calcDerivative(RunLayerContext &context)
+   */
+  WIN_EXPORT void incremental_forwarding(nntrainer::RunLayerContext &context,
+                                         const std::vector<unsigned int> &from,
+                                         const std::vector<unsigned int> &to,
+                                         bool training) override;
+
+  template <typename T>
+  void internal_incremental_forwarding(nntrainer::RunLayerContext &context,
+                                       T template_from, T template_to,
+                                       bool training);
 
   /**
    * @copydoc Layer::calcDerivative(RunLayerContext &context)
@@ -375,6 +389,9 @@ private:
   inline static std::vector<std::vector<_FP16>> *freqs_sin_fp16 = {};
 #endif
 
+  void check_max_timestep(const unsigned int &_from, unsigned int &from,
+                          unsigned int &to);
+
   /**
    * @brief pre_compute frequencies for Rotary Embedding.
    * @note it is expected to be called only once at the finalize.
@@ -414,9 +431,9 @@ private:
 
   void compute_kcaches(nntrainer::Tensor &in, nntrainer::Tensor &cache,
                        nntrainer::Tensor &out, unsigned int from,
-                       size_t sequence_len, unsigned int num_heads,
-                       unsigned int group_size, unsigned int head_dim,
-                       BS::thread_pool<> &pool);
+                       size_t sequence_len, size_t mask_size,
+                       unsigned int num_heads, unsigned int group_size,
+                       unsigned int head_dim, BS::thread_pool<> &pool);
 
   void softmax_triangle(nntrainer::Tensor &qk_out, size_t row, size_t num_heads,
                         unsigned int from, BS::thread_pool<> &pool);
