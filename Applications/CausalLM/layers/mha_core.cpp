@@ -186,28 +186,11 @@ void MHACoreLayer::finalize(nntrainer::InitLayerContext &context) {
 
 /************************************************************** */
 
-/**
- * @note This forwarding function is used for training mode.
- *       This will be implemented ASAP.
- * @date 2024-09-02
- */
-void MHACoreLayer::forwarding(nntrainer::RunLayerContext &context,
-                              bool training) {}
-
-/**
- * @note This incremental_forwarding method is invoked for inference mode.
- *       Please note that Transformer Decoder's MHA takes only one sequence at a
- * step. Incremental forwarding function is used for this.
- */
-void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
-                                          unsigned int _from, unsigned int _to,
-                                          bool training) {
+void MHACoreLayer::check_max_timestep(const unsigned int &_from,
+                                      unsigned int &from, unsigned int &to) {
 
   unsigned int max_timestep =
     std::get<nntrainer::props::MaxTimestep>(mha_core_props).get();
-
-  unsigned int from = _from;
-  unsigned int to = _to;
 
   if (to >= max_timestep) {
     // initial forwarding
@@ -222,6 +205,58 @@ void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
       to = max_timestep;
     }
   }
+}
+
+/**
+ * @note This forwarding function is used for training mode.
+ *       This will be implemented ASAP.
+ * @date 2024-09-02
+ */
+void MHACoreLayer::forwarding(nntrainer::RunLayerContext &context,
+                              bool training) {}
+
+/**
+ * @note This incremental_forwarding method is invoked for inference mode.
+ *       Please note that Transformer Decoder's MHA takes only one sequence at a
+ * step. Incremental forwarding function is used for this.
+ */
+void MHACoreLayer::incremental_forwarding(
+  nntrainer::RunLayerContext &context, const std::vector<unsigned int> &_from,
+  const std::vector<unsigned int> &_to, bool training) {
+  return internal_incremental_forwarding(context, _from, _to, training);
+}
+
+/**
+ * @note This incremental_forwarding method is invoked for inference mode.
+ *       Please note that Transformer Decoder's MHA takes only one sequence at a
+ * step. Incremental forwarding function is used for this.
+ */
+void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
+                                          unsigned int _from, unsigned int _to,
+                                          bool training) {
+  return internal_incremental_forwarding(context, _from, _to, training);
+}
+
+template <typename T>
+void MHACoreLayer::internal_incremental_forwarding(
+  nntrainer::RunLayerContext &context, T T_from, T T_to, bool training) {
+  unsigned int _from;
+  unsigned int _to;
+
+  if constexpr (std::is_same_v<T, unsigned int>) {
+    _from = T_from;
+    _to = T_to;
+  } else if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    _from = *(std::min_element(T_from.begin(), T_from.end()));
+    _to = *(std::max_element(T_to.begin(), T_to.end()));
+  } else {
+    throw std::runtime_error("unsupported from, to type");
+  }
+
+  unsigned int from = _from;
+  unsigned int to = _to;
+
+  check_max_timestep(_from, from, to);
 
   // util fn to compute tensor dimension for one step.
   auto get_step_dim = [to, from](const ml::train::TensorDim &dim) {
@@ -313,11 +348,11 @@ void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
       V_step.copyData(value_step);
       if (use_sink) {
         one_batch_incremental_forwarding(
-          batch, _from, from, to, Q_step, K_step, V_step, O_step, cache_key,
+          batch, T_from, T_to, Q_step, K_step, V_step, O_step, cache_key,
           cache_value, cache_key_dim, cache_key_step_dim, cache_value_dim,
           cache_value_step_dim, sink);
       } else {
-        one_batch_incremental_forwarding(batch, _from, from, to, Q_step, K_step,
+        one_batch_incremental_forwarding(batch, T_from, T_to, Q_step, K_step,
                                          V_step, O_step, cache_key, cache_value,
                                          cache_key_dim, cache_key_step_dim,
                                          cache_value_dim, cache_value_step_dim);
@@ -326,19 +361,19 @@ void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
 #else
       if (use_sink) {
         one_batch_incremental_forwarding(
-          batch, _from, from, to, query_step, key_step, value_step, output_step,
+          batch, T_from, T_to, query_step, key_step, value_step, output_step,
           cache_key, cache_value, cache_key_dim, cache_key_step_dim,
           cache_value_dim, cache_value_step_dim, sink);
       } else {
         one_batch_incremental_forwarding(
-          batch, _from, from, to, query_step, key_step, value_step, output_step,
+          batch, T_from, T_to, query_step, key_step, value_step, output_step,
           cache_key, cache_value, cache_key_dim, cache_key_step_dim,
           cache_value_dim, cache_value_step_dim);
       }
 #endif
     } else {
       one_batch_incremental_forwarding(
-        batch, _from, from, to, query_step, key_step, value_step, output_step,
+        batch, T_from, T_to, query_step, key_step, value_step, output_step,
         cache_key, cache_value, cache_key_dim, cache_key_step_dim,
         cache_value_dim, cache_value_step_dim);
     }
@@ -381,12 +416,13 @@ void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
  */
 void MHACoreLayer::compute_kcaches(
   nntrainer::Tensor &in, nntrainer::Tensor &cache, nntrainer::Tensor &out,
-  unsigned int from, size_t sequence_len, unsigned int num_head,
-  unsigned int group_size, unsigned int head_dim, BS::thread_pool<> &pool) {
+  unsigned int from, size_t sequence_len, size_t mask_size,
+  unsigned int num_head, unsigned int group_size, unsigned int head_dim,
+  BS::thread_pool<> &pool) {
 
   // Dispatch based on data type (FP32 or FP16)
   if (in.getDataType() == ml::train::TensorDim::DataType::FP32) {
-    if (sequence_len == 1) {
+    if (mask_size == 1) {
       // Single token processing (common during generation)
       // Parallelize over KV heads for decoding since Q direction is always 1
       int row_to_compute = is_causal ? from + 1 : from + sequence_len;
@@ -409,13 +445,12 @@ void MHACoreLayer::compute_kcaches(
       // Sequence processing (prefill or chunked)
       // Parallelize over the sequence length
       std::vector<std::future<void>> futures;
-      int seq =
-        sequence_len < local_window_size ? sequence_len : local_window_size;
+      int seq = mask_size < local_window_size ? mask_size : local_window_size;
 
       for (int i = 0; i < seq; ++i) {
         float *input_addr = in.getData<float>() + num_head * head_dim * i;
         uint16_t *cache_addr = cache.getData<uint16_t>();
-        int row_to_compute = is_causal ? from + i + 1 : from + sequence_len;
+        int row_to_compute = is_causal ? from + i + 1 : from + mask_size;
         // Calculate dynamic offset for the output (triangle optimization)
         size_t out_start_row =
           is_causal ? calc_attn_index(from + i) - calc_attn_index(from)
@@ -434,6 +469,7 @@ void MHACoreLayer::compute_kcaches(
     }
   } else if (in.getDataType() == ml::train::TensorDim::DataType::FP16) {
 #ifdef ENABLE_FP16
+    int num_cache_head = num_head / group_size;
     if (sequence_len == 1) {
       // Single token processing (common during generation)
       // Parallelize over KV heads for decoding since Q direction is always 1
@@ -454,11 +490,11 @@ void MHACoreLayer::compute_kcaches(
     } else {
       std::vector<std::future<void>> futures;
       unsigned int seq_start =
-        sequence_len < local_window_size ? 0 : sequence_len - local_window_size;
+        mask_size < local_window_size ? 0 : sequence_len - local_window_size;
       for (unsigned int i = seq_start; i < sequence_len; ++i) {
         _FP16 *input_addr = in.getData<_FP16>() + num_head * head_dim * i;
         _FP16 *cache_addr = cache.getData<_FP16>();
-        int row_to_compute = is_causal ? from + i + 1 : from + sequence_len;
+        int row_to_compute = is_causal ? from + i + 1 : from + mask_size;
         size_t out_start_row =
           is_causal ? calc_attn_index(from + i) - calc_attn_index(from)
                     : i * (from + sequence_len);
@@ -481,9 +517,9 @@ void MHACoreLayer::compute_kcaches(
   }
 }
 
+template <typename T>
 void MHACoreLayer::one_batch_incremental_forwarding(
-  const unsigned int batch, const unsigned int _from, const unsigned int from,
-  const unsigned int to, nntrainer::Tensor &query_step,
+  const unsigned int batch, T T_from, T T_to, nntrainer::Tensor &query_step,
   nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
   nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
   nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
@@ -502,6 +538,25 @@ void MHACoreLayer::one_batch_incremental_forwarding(
    *  +--------+
    *
    */
+  unsigned int _from;
+  unsigned int _to;
+
+  if constexpr (std::is_same_v<T, unsigned int>) {
+    _from = T_from;
+    _to = T_to;
+  } else if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    _from = *(std::min_element(T_from.begin(), T_from.end()));
+    _to = *(std::max_element(T_to.begin(), T_to.end()));
+    // _from = T_from[batch];
+    // _to = T_to[batch];
+  } else {
+    throw std::runtime_error("unsupported from, to type");
+  }
+
+  unsigned int from = _from;
+  unsigned int to = _to;
+
+  check_max_timestep(_from, from, to);
 
   /** 1. Load Input Tensors of this batch : b_ denotes a Tensor for this batch
    * **/
@@ -535,7 +590,9 @@ void MHACoreLayer::one_batch_incremental_forwarding(
   ml::train::TensorDim cached_key_dim = cache_key_dim;
   ml::train::TensorDim cached_value_dim = cache_value_dim;
   cached_key_dim.height(to);
+  cached_key_dim.batch(1);
   cached_value_dim.height(to);
+  cached_value_dim.batch(1);
 
   nntrainer::Tensor b_cached_key = cache_key.getSharedDataTensor(
     cached_key_dim, batch * cache_key_dim.getFeatureLen(), true);
@@ -549,10 +606,39 @@ void MHACoreLayer::one_batch_incremental_forwarding(
       : ((to - from) * to),
     num_heads_Q, query_step.getTensorType());
 
+  out_.setValue((float)0);
+
+  nntrainer::Tensor mask(
+    1, 1,
+    is_causal
+      ? (((to - from) == 1) ? to : calc_attn_index(to) - calc_attn_index(from))
+      : ((to - from) * to),
+    num_heads_Q, query_step.getTensorType());
+
+  unsigned int mask_from, mask_to;
+  size_t i, j, k;
+  if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    mask.setValue(std::numeric_limits<float>::lowest());
+    mask_from = T_from[batch];
+    mask_to = T_to[batch];
+
+    for (i = from; i < to; i++) {
+      for (j = from; j < to; j++) {
+        if (j >= mask_from && j < mask_to)
+          for (k = 0; k < num_heads_Q; k++) {
+            mask.setValue(0, 0, (i * to + j), k, 0.0f);
+          }
+      }
+    }
+  }
+
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
-  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, num_heads_Q,
-                  gqa_size, head_dim, pool);
+  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, to - from,
+                  num_heads_Q, gqa_size, head_dim, pool);
+
+  // applying mask
+  out_.add(mask, out_);
 
   softmax_triangle(out_, to - from, num_heads_Q, from, pool);
 
@@ -561,9 +647,9 @@ void MHACoreLayer::one_batch_incremental_forwarding(
                                 pool);
 }
 
+template <typename T>
 void MHACoreLayer::one_batch_incremental_forwarding(
-  const unsigned int batch, const unsigned int _from, const unsigned int from,
-  const unsigned int to, nntrainer::Tensor &query_step,
+  const unsigned int batch, T T_from, T T_to, nntrainer::Tensor &query_step,
   nntrainer::Tensor &key_step, nntrainer::Tensor &value_step,
   nntrainer::Tensor &attention_output_step, nntrainer::Tensor &cache_key,
   nntrainer::Tensor &cache_value, ml::train::TensorDim &cache_key_dim,
@@ -582,6 +668,23 @@ void MHACoreLayer::one_batch_incremental_forwarding(
    *  +--------+
    *
    */
+  unsigned int _from;
+  unsigned int _to;
+
+  if constexpr (std::is_same_v<T, unsigned int>) {
+    _from = T_from;
+    _to = T_to;
+  } else if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    _from = *(std::min_element(T_from.begin(), T_from.end()));
+    _to = *(std::max_element(T_to.begin(), T_to.end()));
+  } else {
+    throw std::runtime_error("unsupported from, to type");
+  }
+
+  unsigned int from = _from;
+  unsigned int to = _to;
+
+  check_max_timestep(_from, from, to);
 
   /** 1. Load Input Tensors of this batch : b_ denotes a Tensor for this batch
    * **/
@@ -631,8 +734,8 @@ void MHACoreLayer::one_batch_incremental_forwarding(
 
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
-  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, num_heads_Q,
-                  gqa_size, head_dim, pool);
+  compute_kcaches(query_step, b_cached_key, out_, _from, to - from, to - from,
+                  num_heads_Q, gqa_size, head_dim, pool);
 
   softmax_triangle(out_, to - from, num_heads_Q, from, pool, sink_step);
 
