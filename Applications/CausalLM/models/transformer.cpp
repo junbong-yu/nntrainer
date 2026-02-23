@@ -103,6 +103,9 @@ void Transformer::setupParameters(json &cfg, json &generation_cfg,
                     : 1;
   EMBEDDING_DTYPE = nntr_cfg["embedding_dtype"];
   FC_LAYER_DTYPE = nntr_cfg["fc_layer_dtype"];
+  DISABLE_ROPE = nntr_cfg.contains("disable_rope")
+                   ? nntr_cfg["disable_rope"].get<bool>()
+                   : false;
 
   if (cfg.contains("is_causal")) {
     IS_CAUSAL = cfg["is_causal"].get<bool>();

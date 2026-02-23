@@ -187,6 +187,7 @@ protected:
   unsigned int FSU_LOOKAHEAD;
   float ATTN_LOGIT_SOFTCAPPING = 0.0f; /**< attention logit softcapping */
   bool IS_CAUSAL = true;
+  bool DISABLE_ROPE = false; /**< skipping ratory embedding */
 };
 /**
  * Loads JSON data from a file with detailed error handling
