@@ -136,6 +136,15 @@ public:
   using prop_tag = nntrainer::bool_prop_tag;      /**< property type */
 };
 
+/** * @brief DisableRope property */
+class DisableRope : public nntrainer::Property<bool> {
+public:
+  DisableRope(bool value = false) { set(value); };
+  static constexpr const char *key =
+    "disable_rope";                          /**< unique key to access */
+  using prop_tag = nntrainer::bool_prop_tag; /**< property type */
+};
+
 /**
  * @brief RopeScalingType
  * - default
@@ -322,7 +331,7 @@ private:
     props::SlidingWindow, props::MaxNewTokens, props::RopeTheta,
     props::MaxPositionEmbeddings, props::UseSink, props::RopeScalingType,
     props::RopeScalingFactor, props::RopeScalingMaxPositionEmbeddings,
-    props::AttnLogitSoftcapping, props::IsCausal>
+    props::AttnLogitSoftcapping, props::IsCausal, props::DisableRope>
     mha_core_props; /**< mha_core layer properties */
 
   /** softmax activation operation */
@@ -341,6 +350,7 @@ private:
   bool use_sink = false;
   float attn_logit_softcapping = 0.0f;
   bool is_causal;
+  bool disable_rope;
 
   enum INOUT_INDEX {
     /** input index */
