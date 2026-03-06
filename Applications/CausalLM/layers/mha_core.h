@@ -399,6 +399,9 @@ private:
   inline static std::vector<std::vector<_FP16>> *freqs_sin_fp16 = {};
 #endif
 
+  /** static mask tensors for attention */
+  inline static std::vector<nntrainer::Tensor> masks;
+
   void check_max_timestep(const unsigned int &_from, unsigned int &from,
                           unsigned int &to);
 
