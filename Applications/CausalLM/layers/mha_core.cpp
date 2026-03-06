@@ -240,6 +240,44 @@ void MHACoreLayer::incremental_forwarding(nntrainer::RunLayerContext &context,
   return internal_incremental_forwarding(context, _from, _to, training);
 }
 
+static void init_masks_once(const std::vector<unsigned int> &T_from,
+                            const std::vector<unsigned int> &T_to,
+                            unsigned int from, unsigned int to,
+                            unsigned int batch_size, unsigned int num_heads_Q,
+                            bool is_causal,
+                            const ml::train::TensorDim::TensorType &tensor_type,
+                            std::vector<nntrainer::Tensor> &masks) {
+  const std::lock_guard<std::mutex> lock(rope_init_mtx);
+  if (!masks.empty())
+    return;
+
+  auto calc_attn_idx = [](size_t i) { return (i * (i + 1)) / 2; };
+
+  masks.resize(batch_size);
+  for (unsigned int batch = 0; batch < batch_size; ++batch) {
+    nntrainer::Tensor mask(
+      1, 1,
+      is_causal
+        ? (((to - from) == 1) ? to : calc_attn_idx(to) - calc_attn_idx(from))
+        : ((to - from) * to),
+      num_heads_Q, tensor_type);
+
+    mask.setValue(std::numeric_limits<float>::lowest());
+    unsigned int mask_from = T_from[batch];
+    unsigned int mask_to = T_to[batch];
+
+    for (size_t i = from; i < to; i++) {
+      for (size_t j = from; j < to; j++) {
+        if (j >= mask_from && j < mask_to)
+          for (size_t k = 0; k < num_heads_Q; k++) {
+            mask.setValue(0, 0, (i * to + j), k, 0.0f);
+          }
+      }
+    }
+    masks[batch] = std::move(mask);
+  }
+}
+
 template <typename T>
 void MHACoreLayer::internal_incremental_forwarding(
   nntrainer::RunLayerContext &context, T T_from, T T_to, bool training) {
@@ -317,6 +355,11 @@ void MHACoreLayer::internal_incremental_forwarding(
     get_step_dim(cache_value_dim); // (B, 1, from-to, n_heads_KV * head_dim)
 
   unsigned int batch_size = (_from) ? 1 : query_dim.batch();
+
+  if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    init_masks_once(T_from, T_to, from, to, batch_size, num_heads_Q, is_causal,
+                    query.getTensorType(), masks);
+  }
   // do the incremental forwarding
   for (unsigned int batch = 0; batch < batch_size; ++batch) {
 
@@ -612,37 +655,14 @@ void MHACoreLayer::one_batch_incremental_forwarding(
 
   out_.setValue((float)0);
 
-  nntrainer::Tensor mask(
-    1, 1,
-    is_causal
-      ? (((to - from) == 1) ? to : calc_attn_index(to) - calc_attn_index(from))
-      : ((to - from) * to),
-    num_heads_Q, query_step.getTensorType());
-
-  unsigned int mask_from, mask_to;
-  size_t i, j, k;
-  if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
-    mask.setValue(std::numeric_limits<float>::lowest());
-    mask_from = T_from[batch];
-    mask_to = T_to[batch];
-
-    for (i = from; i < to; i++) {
-      for (j = from; j < to; j++) {
-        if (j >= mask_from && j < mask_to)
-          for (k = 0; k < num_heads_Q; k++) {
-            mask.setValue(0, 0, (i * to + j), k, 0.0f);
-          }
-      }
-    }
-  }
-
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
   compute_kcaches(query_step, b_cached_key, out_, _from, to - from, to - from,
                   num_heads_Q, gqa_size, head_dim, pool);
 
-  // applying mask
-  out_.add(mask, out_);
+  if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
+    out_.add(masks[batch], out_);
+  }
 
   softmax_triangle(out_, to - from, num_heads_Q, from, pool);
 
