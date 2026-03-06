@@ -20,6 +20,7 @@
  * @bug		No known bugs except for NYI items
  *
  */
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -39,6 +40,63 @@
 #include <thread>
 
 using json = nlohmann::json;
+
+std::atomic<size_t> peak_rss_kb{0};
+std::atomic<bool> tracking_enabled{true};
+
+void printMemoryUsage() {
+  struct rusage usage;
+  getrusage(RUSAGE_SELF, &usage);
+  std::cout << "Max Resident Set Size: " << usage.ru_maxrss << " KB"
+            << std::endl;
+}
+
+size_t read_vm_rss_kb() {
+  std::ifstream status("/proc/self/status");
+  std::string line;
+  while (std::getline(status, line)) {
+    if (line.find("VmRSS:") == 0) {
+      size_t kb = 0;
+      sscanf(line.c_str(), "VmRSS: %zu kB", &kb);
+      return kb;
+    }
+  }
+  return 0;
+}
+
+size_t read_private_rss_kb() {
+  std::ifstream smaps("/proc/self/smaps_rollup");
+  std::string line;
+  size_t total = 0;
+  while (std::getline(smaps, line)) {
+    if (line.find("Private_Clean:") == 0 || line.find("Private_Dirty:") == 0) {
+      size_t kb;
+      sscanf(line.c_str(), "%*s %zu", &kb);
+      total += kb;
+    }
+  }
+  return total;
+}
+
+void start_peak_tracker() {
+  std::thread([] {
+    while (tracking_enabled.load()) {
+      size_t current = read_private_rss_kb();
+      size_t prev = peak_rss_kb.load();
+      if (current > prev) {
+        peak_rss_kb.store(current);
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+  }).detach();
+}
+
+void stop_and_print_peak() {
+  tracking_enabled.store(false);
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  std::cout << "Peak memory usage (VmRSS): " << peak_rss_kb.load() << " KB"
+            << std::endl;
+}
 
 int main(int argc, char *argv[]) {
 
@@ -75,6 +133,23 @@ int main(int argc, char *argv[]) {
       causallm::LoadJsonFile(model_path + "/generation_config.json");
     json nntr_cfg = causallm::LoadJsonFile(model_path + "/nntr_config.json");
 
+    std::vector<std::string> input_texts;
+    if (argc >= 3) {
+      input_texts.push_back(argv[2]);
+    } else {
+      std::vector<std::string> sample_input_keys;
+      for (auto it = nntr_cfg.begin(); it != nntr_cfg.end(); ++it) {
+        if (it.key().find("sample_input") == 0) {
+          sample_input_keys.push_back(it.key());
+        }
+      }
+      std::sort(sample_input_keys.begin(), sample_input_keys.end());
+
+      for (const auto &key : sample_input_keys) {
+        input_texts.push_back(nntr_cfg[key].get<std::string>());
+      }
+    }
+
     if (nntr_cfg.contains("system_prompt")) {
       system_head_prompt =
         nntr_cfg["system_prompt"]["head_prompt"].get<std::string>();
@@ -82,13 +157,11 @@ int main(int argc, char *argv[]) {
         nntr_cfg["system_prompt"]["tail_prompt"].get<std::string>();
     }
 
-    // Construct weight file path
     const std::string weight_file =
       model_path + "/" + nntr_cfg["model_file_name"].get<std::string>();
 
     std::cout << weight_file << std::endl;
 
-    //     // Initialize and run model
     auto model = causallm::Factory::Instance().create(
       cfg["architectures"].get<std::vector<std::string>>()[0], cfg,
       generation_cfg, nntr_cfg);
@@ -100,69 +173,14 @@ int main(int argc, char *argv[]) {
     start_peak_tracker();
 #endif
 #if defined(_WIN32)
-    model->run(input_text.c_str(), generation_cfg["do_sample"],
-               system_head_prompt.c_str(), system_tail_prompt.c_str());
-#else
-
-#define BATCH
-#ifdef BATCH
-    std::string input_text0 =
-      "Instruct: Given a web search query, retrieve relevant passages that "
-      "answer the query\nQuery: how much protein should a female eat";
-    std::string input_text1 =
-      "Instruct: Given a web search query, retrieve relevant passages that "
-      "answer the query\nQuery: 南瓜的家常做法";
-    std::string input_text2 =
-      "As a general guideline, the CDC's average requirement of protein for "
-      "women ages 19 to 70 is 46 grams per day. But, as you can see from this "
-      "chart, you'll need to increase that if you're expecting or training for "
-      "a marathon. Check out the chart below to see how much protein you "
-      "should be eating each day.";
-    std::string input_text3 =
-      "1.清炒南瓜丝 原料:嫩南瓜半个 调料:葱、盐、白糖、鸡精 做法: "
-      "1、南瓜用刀薄薄的削去表面一层皮,用勺子刮去瓤 "
-      "2、擦成细丝(没有擦菜板就用刀慢慢切成细丝) 3、锅烧热放油,入葱花煸出香味 "
-      "4、入南瓜丝快速翻炒一分钟左右,放盐、一点白糖和鸡精调味出锅 2.香葱炒南瓜 "
-      "原料:南瓜1只 调料:香葱、蒜末、橄榄油、盐 做法: 1、将南瓜去皮,切成片 "
-      "2、油锅8成热后,将蒜末放入爆香 3、爆香后,将南瓜片放入,翻炒 "
-      "4、在翻炒的同时,可以不时地往锅里加水,但不要太多 5、放入盐,炒匀 "
-      "6、南瓜差不多软和绵了之后,就可以关火 7、撒入香葱,即可出锅";
-
-    // std::string input_text0 = "My name is James";
-    // std::string input_text1 = "hello";
-    // std::string input_text2 = "good night";
-    // std::string input_text3 = "I love you";
-
-    std::vector<std::string> input_texts;
-    input_texts.push_back(input_text0);
-    input_texts.push_back(input_text1);
-    input_texts.push_back(input_text2);
-    input_texts.push_back(input_text3);
-
-    std::vector<std::string> system_head_prompts = {"", "", "", ""};
-    std::vector<std::string> system_tail_prompts = {"", "", "", ""};
-
+    std::vector<std::string> system_head_prompts(input_texts.size(), "");
+    std::vector<std::string> system_tail_prompts(input_texts.size(), "");
     model->run(input_texts, false, system_head_prompts, system_tail_prompts);
 #else
-    // token length of below example sentence is 229, this is identified in
-    // config,json
-    std::string input_text =
-      "<s>1.清炒南瓜丝 原料:嫩南瓜半个 调料:葱、盐、白糖、鸡精 做法: "
-      "1、南瓜用刀薄薄的削去表面一层皮,用勺子刮去瓤 "
-      "2、擦成细丝(没有擦菜板就用刀慢慢切成细丝) 3、锅烧热放油,入葱花煸出香味 "
-      "4、入南瓜丝快速翻炒一分钟左右,放盐、一点白糖和鸡精调味出锅 2.香葱炒南瓜 "
-      "原料:南瓜1只 调料:香葱、蒜末、橄榄油、盐 做法: 1、将南瓜去皮,切成片 "
-      "2、油锅8成热后,将蒜末放入爆香 3、爆香后,将南瓜片放入,翻炒 "
-      "4、在翻炒的同时,可以不时地往锅里加水,但不要太多 5、放入盐,炒匀 "
-      "6、南瓜差不多软和绵了之后,就可以关火 7、撒入香葱,即可出锅</s>";
-
-    std::string system_head_prompts = "";
-    std::string system_tail_prompts = "";
-
-    model->run(input_text, false, system_head_prompts, system_tail_prompts);
-#endif // BATCH
-
-#endif // _WIN32
+    std::vector<std::string> system_head_prompts(input_texts.size(), "");
+    std::vector<std::string> system_tail_prompts(input_texts.size(), "");
+    model->run(input_texts, false, system_head_prompts, system_tail_prompts);
+#endif
 #ifdef PROFILE
     stop_and_print_peak();
 #endif
