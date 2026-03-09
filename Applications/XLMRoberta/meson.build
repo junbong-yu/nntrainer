@@ -27,3 +27,24 @@ e = executable('nntr_xlmroberta',
         causallm_dep
     ],
 )
+
+quantize_src = [
+    meson.current_source_dir() / 'quantize.cpp',
+    meson.current_source_dir() / 'xlm_roberta.cpp',
+    meson.current_source_dir() / 'position.cpp',
+    meson.current_source_dir() / 'token_type.cpp',
+    meson.current_source_dir() / 'util.cpp',
+    meson.current_source_dir() / 'fc_layer_single.cpp',
+]
+
+e_quantize = executable('nntr_xlmroberta_quantize',
+    quantize_src,
+    include_directories: xlmroberta_inc,
+    dependencies: [
+        nntrainer_dep,
+        nntrainer_ccapi_dep,
+        causallm_mha_core_dep,
+        causallm_embedding_layer_dep,
+        causallm_dep
+    ],
+)
