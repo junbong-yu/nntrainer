@@ -360,12 +360,28 @@ std::vector<float *> Embedding::encode(const std::vector<WSTR> prompts,
   std::vector<unsigned int> to_values =
     input_lengths; // Each batch ends at its length
 
+  auto start_prefill = std::chrono::high_resolution_clock::now();
+
   // Run incremental inference for the prefill stage
   // start: 0, end: max_input_len (process all tokens at once)
   // This performs a single forward pass for the entire prompt sequence to get
   // embeddings.
   std::vector<float *> output = model->incremental_inference(
     batch_count, input, label, max_input_len, from_values, to_values, false);
+
+  auto finish_prefill = std::chrono::high_resolution_clock::now();
+  auto prefill_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+    finish_prefill - start_prefill);
+
+    std::cout << to_values[0] << std::endl;
+    std::cout << to_values[1] << std::endl;
+    std::cout << to_values[2] << std::endl;
+    std::cout << to_values[3] << std::endl;
+
+  std::cout << "prefill: " << std::accumulate(to_values.begin(), to_values.end(), 0) << " tokens, "
+            << prefill_duration.count() << " ms, "
+            << ((double)std::accumulate(to_values.begin(), to_values.end(), 0) / prefill_duration.count() * 1000)
+            << " TPS\n";
 
   free(input_sample);
 
