@@ -200,7 +200,8 @@ protected:
   unsigned int FSU_LOOKAHEAD;
   float ATTN_LOGIT_SOFTCAPPING = 0.0f; /**< attention logit softcapping */
   bool IS_CAUSAL = true;
-  bool DISABLE_ROPE = false; /**< skipping ratory embedding */
+  bool DISABLE_ROPE = false;    /**< skipping ratory embedding */
+  unsigned int VOCAB_TYPE_SIZE; /**< size of vocab types */
 };
 /**
  * Loads JSON data from a file with detailed error handling
