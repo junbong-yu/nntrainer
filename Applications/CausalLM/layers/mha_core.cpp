@@ -1056,7 +1056,7 @@ void MHACoreLayer::apply_rotary_emb_tensor_v2(nntrainer::Tensor &in,
 
           nntrainer::compute_rotary_emb_value(in.width(), dim, half_, in_ptr,
                                               out_ptr, cos_->data(),
-                                              sin_->data());
+                                              sin_->data(), convert_only);
         }
       }
     }

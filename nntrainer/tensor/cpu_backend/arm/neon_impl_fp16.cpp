@@ -2297,7 +2297,8 @@ void compute_rotary_emb_value(unsigned int width, unsigned int dim,
 // Rotates pairs of elements in the embedding vector by a given angle.
 void compute_rotary_emb_value(unsigned int width, unsigned int dim,
                               unsigned int half_, __fp16 *inout, __fp16 *output,
-                              const __fp16 *cos_, const __fp16 *sin_) {
+                              const __fp16 *cos_, const __fp16 *sin_,
+                              bool only_convert_to_fp16) {
   // Iterate over the width dimension (e.g., flattened batch/head/seq)
   // 'dim' is typicallly the head dimension
   for (unsigned int w = 0; w < width; w += dim) {
@@ -2307,38 +2308,51 @@ void compute_rotary_emb_value(unsigned int width, unsigned int dim,
       for (; k + 7 < half_; k += 8) {
         unsigned int i0 = w + k;
         unsigned int i1 = w + k + half_;
-
         float16x8_t a = vld1q_f16(&inout[i0]);
         float16x8_t b = vld1q_f16(&inout[i1]);
 
-        float16x8_t cos_v = vld1q_f16(&cos_[k]);
-        float16x8_t sin_v = vld1q_f16(&sin_[k]);
+        float16x8_t out0, out1;
 
-        // [ x' ] = [ cos -sin ] [x]
-        // [ y' ]   [ sin  cos ] [y]
-        //
-        // out0 = a * cos - b * sin
-        // out1 = a * sin + b * cos
-        float16x8_t out0 = vsubq_f16(vmulq_f16(a, cos_v), vmulq_f16(b, sin_v));
-        float16x8_t out1 = vaddq_f16(vmulq_f16(a, sin_v), vmulq_f16(b, cos_v));
-
+        if (only_convert_to_fp16) {
+          out0 = a;
+          out1 = b;
+        } else {
+          float16x8_t cos_v = vld1q_f16(&cos_[k]);
+          float16x8_t sin_v = vld1q_f16(&sin_[k]);
+          // [ x' ] = [ cos -sin ] [x]
+          // [ y' ]   [ sin  cos ] [y]
+          //
+          // out0 = a * cos - b * sin
+          // out1 = a * sin + b * cos
+          out0 = vsubq_f16(vmulq_f16(a, cos_v), vmulq_f16(b, sin_v));
+          out1 = vaddq_f16(vmulq_f16(a, sin_v), vmulq_f16(b, cos_v));
+        }
         vst1q_f16(&output[i0], out0);
         vst1q_f16(&output[i1], out1);
       }
     } else {
       for (; k + 7 < half_; k += 8) {
+
         unsigned int i0 = w + k;
         unsigned int i1 = w + k + half_;
 
         float16x8_t a = vld1q_f16(&inout[i0]);
         float16x8_t b = vld1q_f16(&inout[i1]);
 
-        float16x8_t cos_v = vld1q_f16(&cos_[k]);
-        float16x8_t sin_v = vld1q_f16(&sin_[k]);
+        float16x8_t out0, out1;
 
-        float16x8_t out0 = vsubq_f16(vmulq_f16(a, cos_v), vmulq_f16(b, sin_v));
-        float16x8_t out1 = vaddq_f16(vmulq_f16(a, sin_v), vmulq_f16(b, cos_v));
+        if (only_convert_to_fp16) {
+          out0 = a;
+          out1 = b;
+        } else {
+          float16x8_t cos_v = vld1q_f16(&cos_[k]);
+          float16x8_t sin_v = vld1q_f16(&sin_[k]);
 
+          float16x8_t out0 =
+            vsubq_f16(vmulq_f16(a, cos_v), vmulq_f16(b, sin_v));
+          float16x8_t out1 =
+            vaddq_f16(vmulq_f16(a, sin_v), vmulq_f16(b, cos_v));
+        }
         vst1q_f16(&inout[i0], out0);
         vst1q_f16(&inout[i1], out1);
       }
