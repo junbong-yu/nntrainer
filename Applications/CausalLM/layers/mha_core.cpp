@@ -244,14 +244,17 @@ static void init_masks_once(const std::vector<unsigned int> &T_from,
                             const std::vector<unsigned int> &T_to,
                             unsigned int from, unsigned int to,
                             unsigned int batch_size, unsigned int num_heads_Q,
-                            bool is_causal,
-                            const ml::train::TensorDim::TensorType &tensor_type,
+                            bool is_causal, ml::train::TensorDim &tensor_dim,
                             std::vector<nntrainer::Tensor> &masks) {
   const std::lock_guard<std::mutex> lock(rope_init_mtx);
   if (!masks.empty())
     return;
 
   auto calc_attn_idx = [](size_t i) { return (i * (i + 1)) / 2; };
+
+#if ENABLE_FP16 && defined(__ANDROID__)
+  tensor_dim.setDataType(ml::train::TensorDim::DataType::FP16);
+#endif
 
   masks.resize(batch_size);
   for (unsigned int batch = 0; batch < batch_size; ++batch) {
@@ -260,7 +263,7 @@ static void init_masks_once(const std::vector<unsigned int> &T_from,
       is_causal
         ? (((to - from) == 1) ? to : calc_attn_idx(to) - calc_attn_idx(from))
         : ((to - from) * to),
-      num_heads_Q, tensor_type);
+      num_heads_Q, tensor_dim.getTensorType());
 
     mask.setValue(std::numeric_limits<float>::lowest());
     unsigned int mask_from = T_from[batch];
@@ -358,7 +361,7 @@ void MHACoreLayer::internal_incremental_forwarding(
 
   if constexpr (std::is_same_v<T, std::vector<unsigned int>>) {
     init_masks_once(T_from, T_to, from, to, batch_size, num_heads_Q, is_causal,
-                    query.getTensorType(), masks);
+                    query_dim, masks);
   }
   // do the incremental forwarding
   for (unsigned int batch = 0; batch < batch_size; ++batch) {
@@ -653,7 +656,7 @@ void MHACoreLayer::one_batch_incremental_forwarding(
       : ((to - from) * to),
     num_heads_Q, query_step.getTensorType());
 
-  out_.setValue((float)0);
+  out_.setValue(0);
 
   unsigned int gqa_size = num_heads_Q / num_heads_KV;
 
