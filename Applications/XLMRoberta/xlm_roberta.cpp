@@ -128,6 +128,7 @@ void XLMRoberta::setupParameters(causallm::json &cfg,
   //                              ? cfg["sliding_window_pattern"].get<unsigned
   //                              int>() : 1;
   MAX_POSITION_EMBEDDINGS = cfg["max_position_embeddings"].get<unsigned int>();
+  VOCAB_TYPE_SIZE = cfg["type_vocab_size"].get<unsigned int>();
   // // ROPE_THETA = cfg["rope_theta"].get<unsigned int>();
   // // TIE_WORD_EMBEDDINGS = cfg["tie_word_embeddings"].get<bool>();
   // // NORM_EPS = cfg["rms_norm_eps"];
@@ -214,6 +215,7 @@ void XLMRoberta::constructXLMRobertaOutput(int layer_id,
     withKey("name",
             "encoder_" + std::to_string(layer_id) + "_output_layer_norm"),
     withKey("axis", "3"), withKey("epsilon", "1e-5"),
+    withKey("packed", "false"),
     withKey("input_layers",
             "encoder_" + std::to_string(layer_id) + "_output_tmp_add")};
   printInputLayers(norm_param, "encoder_" + std::to_string(layer_id) +
@@ -276,6 +278,7 @@ void XLMRoberta::constructXLMRobertaSelfOutput(int layer_id,
     withKey("name", "encoder_" + std::to_string(layer_id) +
                       "_attention_output_layer_norm"),
     withKey("axis", "3"), withKey("epsilon", "1e-5"),
+    withKey("packed", "false"),
     withKey("input_layers",
             "encoder_" + std::to_string(layer_id) + "_attention_tmp_add")};
   printInputLayers(layer_norm_params, "encoder_" + std::to_string(layer_id) +
@@ -443,7 +446,9 @@ void XLMRoberta::constructXLMRobertaEmbeddings() {
 
   // word_embedding
   std::vector<std::string> word_embedding_params = {
-    "name=embedding_word_embedding", "in_dim=" + std::to_string(NUM_VOCAB),
+    "name=embedding_word_embedding",
+    "in_dim=" + std::to_string(((NUM_VOCAB + 32) / 32) *
+                               32), // round-up by 32 for quantization
     "weight_dtype=" + EMBEDDING_DTYPE, "out_dim=" + std::to_string(DIM),
     "input_layers=input0"};
   printInputLayers(word_embedding_params, "embedding_word_embedding");
@@ -452,7 +457,8 @@ void XLMRoberta::constructXLMRobertaEmbeddings() {
   // position_embedding
   std::vector<std::string> position_embedding_params = {
     "name=embedding_position_embedding",
-    "in_dim=" + std::to_string(514), // JBD: fix this!!
+    "in_dim=" + std::to_string(((MAX_POSITION_EMBEDDINGS + 32) / 32) *
+                               32), // round-up by 32 for quantization
     "weight_dtype=" + EMBEDDING_DTYPE, "out_dim=" + std::to_string(DIM),
     "input_layers=position"};
   printInputLayers(position_embedding_params, "embedding_position_embedding");
@@ -461,7 +467,8 @@ void XLMRoberta::constructXLMRobertaEmbeddings() {
   // token_type_embedding
   std::vector<std::string> token_type_embedding_params = {
     "name=embedding_token_type_embedding",
-    "in_dim=" + std::to_string(1), // JBD fix this!!
+    "in_dim=" + std::to_string(((VOCAB_TYPE_SIZE + 32) / 32) *
+                               32), // round-up by 32 for quantization
     "weight_dtype=" + EMBEDDING_DTYPE, "out_dim=" + std::to_string(DIM),
     "input_layers=token_type"};
   printInputLayers(token_type_embedding_params,
@@ -487,7 +494,7 @@ void XLMRoberta::constructXLMRobertaEmbeddings() {
   // layer normalization
   std::vector<std::string> layer_norm_params = {
     "name=embedding_layer_norm", "axis=3", "epsilon=1e-5",
-    "input_layers=embedding_addition1"};
+    "input_layers=embedding_addition1", "packed=false"};
   printInputLayers(layer_norm_params, "embedding_layer_norm");
   layers.push_back(createLayer("layer_normalization", layer_norm_params));
 
