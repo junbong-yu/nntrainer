@@ -204,6 +204,7 @@ void LayerNormalizationLayer::incremental_forwarding(RunLayerContext &context,
   input.average(normalize_axes, temp_norm_size);
   input.subtract(temp_norm_size, deviation);
 
+#undef ENABLE_FP16
 #ifndef ENABLE_FP16
   deviation.pow(2.0f, temp_full_size);
   temp_full_size.average(normalize_axes, variance);
