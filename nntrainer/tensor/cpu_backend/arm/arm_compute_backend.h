@@ -453,7 +453,8 @@ void compute_kcaches(const _FP16 *in, const _FP16 *kcache, _FP16 *output,
  */
 void compute_rotary_emb_value(unsigned int width, unsigned int dim,
                               unsigned int half_, _FP16 *inout, _FP16 *output,
-                              const _FP16 *cos_, const _FP16 *sin_);
+                              const _FP16 *cos_, const _FP16 *sin_,
+                              bool only_convert_to_fp16);
 /**
  * @brief qs4cx quantization of (n*k) matrix. Typically a weight quantization,
  * and generally regard the weight is already transposed, and quantize it as it

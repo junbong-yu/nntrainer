@@ -429,7 +429,8 @@ void compute_kcaches(const __fp16 *in, const __fp16 *kcache, __fp16 *output,
  */
 void compute_rotary_emb_value(unsigned int width, unsigned int dim,
                               unsigned int half_, __fp16 *inout, __fp16 *output,
-                              const __fp16 *cos_, const __fp16 *sin_);
+                              const __fp16 *cos_, const __fp16 *sin_,
+                              bool only_convert_to_fp16);
 
 #endif
 
