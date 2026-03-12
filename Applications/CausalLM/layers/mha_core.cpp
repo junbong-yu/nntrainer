@@ -900,32 +900,36 @@ void MHACoreLayer::apply_rotary_emb_tensor_v2(nntrainer::Tensor &in,
     }
   } else if (in.getDataType() == ml::train::TensorDim::DataType::FP16) {
 #ifdef ENABLE_FP16
-    if (freqs_cos_fp16 == nullptr) {
-      const std::lock_guard<std::mutex> lock(rope_init_mtx);
+    if (convert_only) {
+      out.copyData(in);
+    } else {
       if (freqs_cos_fp16 == nullptr) {
-        precompute_freqs(head_dim, max_position_embeddings, theta, true);
+        const std::lock_guard<std::mutex> lock(rope_init_mtx);
+        if (freqs_cos_fp16 == nullptr) {
+          precompute_freqs(head_dim, max_position_embeddings, theta, true);
+        }
       }
-    }
-    std::vector<_FP16> *cos_ = nullptr;
-    std::vector<_FP16> *sin_ = nullptr;
+      std::vector<_FP16> *cos_ = nullptr;
+      std::vector<_FP16> *sin_ = nullptr;
 
-    for (unsigned int b = 0; b < in.batch(); b++) {
-      for (unsigned int c = 0; c < in.channel(); c++) {
-        for (unsigned int h = 0; h < in.height(); h++) {
-          if (from < max_timestep) {
-            cos_ = &(*freqs_cos_fp16)[from + h];
-            sin_ = &(*freqs_sin_fp16)[from + h];
+      for (unsigned int b = 0; b < in.batch(); b++) {
+        for (unsigned int c = 0; c < in.channel(); c++) {
+          for (unsigned int h = 0; h < in.height(); h++) {
+            if (from < max_timestep) {
+              cos_ = &(*freqs_cos_fp16)[from + h];
+              sin_ = &(*freqs_sin_fp16)[from + h];
+            }
+            _FP16 *in_ptr = in.getData<_FP16>() +
+                            b * in.channel() * in.height() * in.width() +
+                            c * in.height() * in.width() + h * in.width();
+            _FP16 *out_ptr = out.getData<_FP16>() +
+                             b * out.channel() * out.height() * out.width() +
+                             c * out.height() * out.width() + h * out.width();
+
+            nntrainer::compute_rotary_emb_value(in.width(), dim, half_, in_ptr,
+                                                out_ptr, cos_->data(),
+                                                sin_->data());
           }
-          _FP16 *in_ptr = in.getData<_FP16>() +
-                          b * in.channel() * in.height() * in.width() +
-                          c * in.height() * in.width() + h * in.width();
-          _FP16 *out_ptr = out.getData<_FP16>() +
-                           b * out.channel() * out.height() * out.width() +
-                           c * out.height() * out.width() + h * out.width();
-
-          nntrainer::compute_rotary_emb_value(in.width(), dim, half_, in_ptr,
-                                              out_ptr, cos_->data(),
-                                              sin_->data());
         }
       }
     }
