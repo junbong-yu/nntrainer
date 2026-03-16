@@ -18,6 +18,7 @@ export NNTRAINER_ROOT
 echo "NNTRAINER_ROOT: $NNTRAINER_ROOT"
 echo "ANDROID_NDK: $ANDROID_NDK"
 
+sudo rm -rf "$NNTRAINER_ROOT/builddir"
 # Step 1: Build nntrainer for Android if not already built
 if [ ! -f "$NNTRAINER_ROOT/builddir/android_build_result/lib/arm64-v8a/libnntrainer.so" ]; then
     echo "Building nntrainer for Android..."

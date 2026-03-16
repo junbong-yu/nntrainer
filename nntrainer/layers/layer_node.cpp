@@ -821,7 +821,17 @@ void LayerNode::incremental_forwarding(unsigned int from, unsigned int to,
   loss->set(run_context->getRegularizationLoss());
   PROFILE_TIME_START(forward_event_key);
   // std::cerr << getType() << "\n";
+  auto start_prefill = std::chrono::high_resolution_clock::now();
+
   layer->incremental_forwarding(*run_context, from, to, training);
+
+  auto finish_prefill = std::chrono::high_resolution_clock::now();
+  auto prefill_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+		  finish_prefill - start_prefill);
+
+  std::cout << "layer_name: " << getName() << ", \t"
+	  << "time: " << prefill_duration.count() << " ms \n";
+
   PROFILE_TIME_END(forward_event_key);
   TRACE_MEMORY() << getName() + ": F";
   TRACE_TIME() << getName() + ": F";
@@ -845,7 +855,16 @@ void LayerNode::incremental_forwarding(const std::vector<unsigned int> &from,
                                        bool training) {
   loss->set(run_context->getRegularizationLoss());
   PROFILE_TIME_START(forward_event_key);
+  auto start_prefill = std::chrono::high_resolution_clock::now();
+
   layer->incremental_forwarding(*run_context, from, to, training);
+
+  auto finish_prefill = std::chrono::high_resolution_clock::now();
+  auto prefill_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+		  finish_prefill - start_prefill);
+
+  std::cout << "(vector)layer_name: " << getName() << ", \t"
+	  << "time: " << prefill_duration.count() << " ms \n";
   PROFILE_TIME_END(forward_event_key);
   TRACE_MEMORY() << getName() + ": F";
   TRACE_TIME() << getName() + ": F";
