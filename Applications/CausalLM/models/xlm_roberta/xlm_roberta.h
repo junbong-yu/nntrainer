@@ -17,11 +17,11 @@
 #pragma once
 
 #include <map>
-#include "../CausalLM/models/embedding.h"
+#include "../CausalLM/models/sentence_transformer.h"
 
-namespace xlmroberta
+namespace causallm
 {
-  WIN_EXPORT class XLMRoberta : public causallm::Embedding
+  WIN_EXPORT class XLMRoberta : public SentenceTransformer
   {
 
   public:
@@ -29,9 +29,9 @@ namespace xlmroberta
     static constexpr const char *architectures = "XLMRobertaModel";
     std::string HIDDEN_ACT;
     XLMRoberta(
-        causallm::json &cfg, causallm::json &generation_cfg, causallm::json &nntr_cfg)
-        : Transformer(cfg, generation_cfg, nntr_cfg, causallm::ModelType::EMBEDDING),
-          Embedding(cfg, generation_cfg, nntr_cfg)
+        json &cfg, json &generation_cfg, json &nntr_cfg)
+        : Transformer(cfg, generation_cfg, nntr_cfg, ModelType::EMBEDDING),
+          SentenceTransformer(cfg, generation_cfg, nntr_cfg)
     {
       setupParameters(cfg, generation_cfg, nntr_cfg);
     }
@@ -41,8 +41,8 @@ namespace xlmroberta
   private:
     
     void constructModel();
-    void setupParameters(causallm::json &cfg, causallm::json &generation_cfg,
-                         causallm::json &nntr_cfg);
+    void setupParameters(json &cfg, json &generation_cfg,
+                         json &nntr_cfg);
     void constructXLMRobertaPooler();
     void constructXLMRobertaEncoder();
     void constructXLMRobertaEmbeddings();
@@ -58,9 +58,9 @@ namespace xlmroberta
     void constructXLMRobertaLayer();
     std::string getLastComponent(const std::string &type);
 
-    std::vector<causallm::json> modules;
+    std::vector<json> modules;
   };
 
-} // namespace xlmroberta
+} // namespace causallm
 
 #endif

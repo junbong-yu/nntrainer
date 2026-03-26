@@ -17,7 +17,7 @@
 #include <layer_context.h>
 #include <tensor.h>
 
-namespace xlmroberta {
+namespace causallm {
 
 /**
  * @brief Create position IDs from input IDs following the XLM-RoBERTa implementation
@@ -29,6 +29,6 @@ void createPositionIdsFromInputIds(nntrainer::Tensor &input_ids,
                                    nntrainer::Tensor &position_ids,
                                    int pad_token_id = 1);
 
-} // namespace xlmroberta
+} // namespace causallm
 
 #endif /* __XLMROBERTA_UTIL_H__ */

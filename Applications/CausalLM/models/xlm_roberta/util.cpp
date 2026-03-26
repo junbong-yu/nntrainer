@@ -13,7 +13,7 @@
 
 #include "util.h"
 
-namespace xlmroberta {
+namespace causallm {
 
 void createPositionIdsFromInputIds(nntrainer::Tensor &input_ids,
                                    nntrainer::Tensor &position_ids,
@@ -44,4 +44,4 @@ void createPositionIdsFromInputIds(nntrainer::Tensor &input_ids,
   }
 }
 
-} // namespace xlmroberta
+} // namespace causallm

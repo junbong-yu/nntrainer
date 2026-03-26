@@ -32,7 +32,7 @@
 
 #include <iostream>
 
-namespace xlmroberta {
+namespace causallm {
 
 static constexpr size_t SINGLE_INOUT_IDX = 0;
 
@@ -372,4 +372,4 @@ void FullyConnectedSingleLayer::calcGradient(nntrainer::RunLayerContext &context
   }
 }
 
-} /* namespace xlmroberta */
+} /* namespace causallm */

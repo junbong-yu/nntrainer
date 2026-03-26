@@ -17,7 +17,7 @@
 #include <common_properties.h>
 #include <layer_impl.h>
 
-namespace xlmroberta {
+namespace causallm {
 
 /**
  * @class   FullyConnectedSingleLayer
@@ -122,6 +122,6 @@ private:
   std::array<unsigned int, 4> lora_idx;   /**< indices of the lora weights */
   std::unique_ptr<nntrainer::Quantizer> quantizer;
 };
-} // namespace xlmroberta
+} // namespace causallm
 
 #endif /* __FC_LAYER_SINGLE_H__ */

@@ -19,7 +19,7 @@
 #include "token_type.h"
 #include "util.h"
 
-namespace xlmroberta {
+namespace causallm {
 
 static constexpr size_t SINGLE_INOUT_IDX = 0;
 
@@ -79,24 +79,5 @@ void TokenType::forwarding(nntrainer::RunLayerContext &context,
   token_type_ids.setValue(0);
 }
 
-#ifdef PLUGGABLE
 
-nntrainer::Layer *create_token_type_layer() {
-  auto layer = new TokenType();
-  std::cout << "token type layer created\n";
-  return layer;
-}
-
-void destroy_token_type_layer(nntrainer::Layer *layer) {
-  std::cout << "token type layer deleted\n";
-  delete layer;
-}
-
-extern "C" {
-nntrainer::LayerPluggable ml_train_layer_pluggable{create_token_type_layer,
-                                                   destroy_token_type_layer};
-}
-
-#endif
-
-} // namespace xlmroberta
+} // namespace causallm

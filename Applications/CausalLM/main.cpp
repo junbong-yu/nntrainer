@@ -41,6 +41,7 @@
 #include "qwen3_embedding.h"
 #include "qwen3_moe_causallm.h"
 #include "qwen3_slim_moe_causallm.h"
+#include "models/xlm_roberta/xlm_roberta.h"
 #include <models/gemma3/function.h>
 #include <sys/resource.h>
 
@@ -120,6 +121,8 @@ std::string resolve_architecture(std::string model_type,
       return "EmbeddingGemma";
     } else if (architecture == "Qwen2Model") {
       return "Qwen2Embedding";
+    } else if (architecture == "XLMRobertaModel") {
+      return "XLMRoberta";
     } else {
       throw std::invalid_argument(
         "Unsupported architecture for embedding model: " + architecture);
@@ -196,6 +199,11 @@ int main(int argc, char *argv[]) {
     "EmbeddingGemma", [](json cfg, json generation_cfg, json nntr_cfg) {
       return std::make_unique<causallm::EmbeddingGemma>(cfg, generation_cfg,
                                                         nntr_cfg);
+    });
+  causallm::Factory::Instance().registerModel(
+    "XLMRoberta", [](json &cfg, json &generation_cfg, json &nntr_cfg) {
+      return std::make_unique<causallm::XLMRoberta>(cfg, generation_cfg,
+                                                    nntr_cfg);
     });
 
   // Validate arguments

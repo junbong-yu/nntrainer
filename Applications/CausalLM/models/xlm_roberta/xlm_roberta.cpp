@@ -40,10 +40,7 @@
 #include <token_type.h>
 #include <fc_layer_single.h>
 
-using causallm::json;
-using causallm::ModelType;
-
-namespace xlmroberta
+namespace causallm
 {
   static const bool debug = false; // Set to false to disable debugging
 
@@ -69,10 +66,10 @@ namespace xlmroberta
     }
   }
 
-  void XLMRoberta::setupParameters(causallm::json &cfg, causallm::json &generation_cfg,
-                                   causallm::json &nntr_cfg)
+  void XLMRoberta::setupParameters(json &cfg, json &generation_cfg,
+                                   json &nntr_cfg)
   {
-    Embedding::setupParameters(cfg, generation_cfg, nntr_cfg);
+    SentenceTransformer::setupParameters(cfg, generation_cfg, nntr_cfg);
 
     IS_CAUSAL = false; // it is better to specify in config.json
 
@@ -90,7 +87,7 @@ namespace xlmroberta
     try
     {
       // 1. Load modules.json to get the structure and order of layers
-      json modules_json = causallm::LoadJsonFile(modules_config_path);
+      json modules_json = LoadJsonFile(modules_config_path);
       modules = modules_json.get<std::vector<json>>();
     }
     catch (const std::exception &e)
@@ -185,14 +182,14 @@ namespace xlmroberta
     try
     {
       // roberta custom layers
-      app_context->registerFactory(nntrainer::createLayer<xlmroberta::Position>);
-      app_context->registerFactory(nntrainer::createLayer<xlmroberta::TokenType>);
-      app_context->registerFactory(nntrainer::createLayer<xlmroberta::FullyConnectedSingleLayer>);
+      app_context->registerFactory(nntrainer::createLayer<Position>);
+      app_context->registerFactory(nntrainer::createLayer<TokenType>);
+      app_context->registerFactory(nntrainer::createLayer<FullyConnectedSingleLayer>);
 
 
       // causallm custom layers
-      // app_context->registerFactory(nntrainer::createLayer<causallm::EmbeddingLayer>);
-      app_context->registerFactory(nntrainer::createLayer<causallm::MHACoreLayer>);
+      // app_context->registerFactory(nntrainer::createLayer<EmbeddingLayer>);
+      app_context->registerFactory(nntrainer::createLayer<MHACoreLayer>);
     }
     catch (std::invalid_argument &e)
     {
@@ -570,4 +567,4 @@ namespace xlmroberta
     }
   }
 
-} // namespace xlmroberta
+} // namespace causallm

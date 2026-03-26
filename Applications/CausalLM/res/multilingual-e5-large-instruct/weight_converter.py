@@ -92,10 +92,7 @@ if __name__ == "__main__":
 
     for param_tensor in model.state_dict():
         weight = model.state_dict()[param_tensor]
-    print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-    print(weight)
     print("----------------------------------------------")
-
 
     with open(output_name, "wb") as f_model :
         save_xlmroberta_for_nntrainer(model.state_dict(), config.num_hidden_layers, data_dtype, f_model)
