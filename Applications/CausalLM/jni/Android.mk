@@ -79,6 +79,11 @@ LOCAL_SRC_FILES := ../main.cpp \
     ../models/gemma3/gemma3_causallm.cpp \
     ../models/gemma3/embedding_gemma.cpp \
     ../models/gemma3/function.cpp \
+    ../models/xlm_roberta/xlm_roberta.cpp \
+    ../models/xlm_roberta/fc_layer_single.cpp \
+    ../models/xlm_roberta/position.cpp \
+    ../models/xlm_roberta/token_type.cpp \
+    ../models/xlm_roberta/util.cpp \
 
 LOCAL_SHARED_LIBRARIES := nntrainer ccapi-nntrainer
 LOCAL_STATIC_LIBRARIES := tokenizers_c
@@ -95,5 +100,6 @@ LOCAL_C_INCLUDES += $(NNTRAINER_INCLUDES) \
     $(LOCAL_PATH)/../models/qwen3_slim_moe \
     $(LOCAL_PATH)/../models/qwen3_cached_slim_moe \
     $(LOCAL_PATH)/../models/gemma3 \
+    $(LOCAL_PATH)/../models/xlm_roberta \
 
 include $(BUILD_EXECUTABLE)
