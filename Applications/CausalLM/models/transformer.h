@@ -164,7 +164,7 @@ protected:
   int INTERMEDIATE_SIZE;
   int NUM_LAYERS;
   bool USE_VOCAB_SELECTION;
-  bool TIE_WORD_EMBEDDINGS;
+  bool TIE_WORD_EMBEDDINGS = false;
   unsigned int MAX_SEQ_LEN;
   int NUM_HEADS;
   int NUM_KEY_VALUE_HEADS;
