@@ -34,6 +34,7 @@
 #include "gemma3_causallm.h"
 #include "gptoss_cached_slim_causallm.h"
 #include "gptoss_causallm.h"
+#include "models/xlm_roberta/xlm_roberta.h"
 #include "qwen2_causallm.h"
 #include "qwen2_embedding.h"
 #include "qwen3_cached_slim_moe_causallm.h"
@@ -41,7 +42,6 @@
 #include "qwen3_embedding.h"
 #include "qwen3_moe_causallm.h"
 #include "qwen3_slim_moe_causallm.h"
-#include "models/xlm_roberta/xlm_roberta.h"
 #include <models/gemma3/function.h>
 #include <sys/resource.h>
 
@@ -252,23 +252,44 @@ int main(int argc, char *argv[]) {
     }
 
     // Determine input text
+    std::string input_text;
+    std::vector<std::string> input_texts;
+    int batch_size = 1;
+    if (nntr_cfg.contains("batch_size")) {
+      batch_size = nntr_cfg["batch_size"].get<int>();
+    }
+
     if (argc >= 3) {
       input_text = argv[2];
+      input_texts.push_back(argv[2]);
     } else {
-      if (nntr_cfg.contains("chat_input")) {
-        if (architecture == "Gemma3ForCausalLM") {
-          input_text = causallm::gemma3::apply_function_gemma_template(
-            nntr_cfg["chat_input"]);
-        } else {
-          std::cerr << "[Warning] 'chat_input' is set but support for model "
-                       "architecture '"
-                    << architecture
-                    << "' is not implemented. Falling back to 'sample_input'."
-                    << std::endl;
-          input_text = nntr_cfg["sample_input"].get<std::string>();
+      if (batch_size > 1) {
+        for (int i = 1; i <= batch_size; ++i) {
+          std::string key = "sample_input" + std::to_string(i);
+          if (nntr_cfg.contains(key)) {
+            input_texts.push_back(nntr_cfg[key].get<std::string>());
+          }
+        }
+        if (!input_texts.empty()) {
+          input_text = input_texts[0];
         }
       } else {
-        input_text = nntr_cfg["sample_input"].get<std::string>();
+        if (nntr_cfg.contains("chat_input")) {
+          if (architecture == "Gemma3ForCausalLM") {
+            input_text = causallm::gemma3::apply_function_gemma_template(
+              nntr_cfg["chat_input"]);
+          } else {
+            std::cerr << "[Warning] 'chat_input' is set but support for model "
+                         "architecture '"
+                      << architecture
+                      << "' is not implemented. Falling back to 'sample_input'."
+                      << std::endl;
+            input_text = nntr_cfg["sample_input"].get<std::string>();
+          }
+        } else {
+          input_text = nntr_cfg["sample_input"].get<std::string>();
+        }
+        input_texts.push_back(input_text);
       }
     }
 
@@ -282,12 +303,43 @@ int main(int argc, char *argv[]) {
 #ifdef PROFILE
     start_peak_tracker();
 #endif
+    if (batch_size > 1) {
+      std::vector<std::string> system_head_prompts(input_texts.size(),
+                                                   system_head_prompt);
+      std::vector<std::string> system_tail_prompts(input_texts.size(),
+                                                   system_tail_prompt);
+
 #if defined(_WIN32)
-    model->run(input_text.c_str(), do_sample, system_head_prompt.c_str(),
-               system_tail_prompt.c_str());
+      std::vector<std::wstring> winput_texts;
+      std::vector<std::wstring> wsystem_head_prompts;
+      std::vector<std::wstring> wsystem_tail_prompts;
+
+      for (const auto &text : input_texts) {
+        winput_texts.push_back(std::wstring(text.begin(), text.end()));
+      }
+      for (const auto &prompt : system_head_prompts) {
+        wsystem_head_prompts.push_back(
+          std::wstring(prompt.begin(), prompt.end()));
+      }
+      for (const auto &prompt : system_tail_prompts) {
+        wsystem_tail_prompts.push_back(
+          std::wstring(prompt.begin(), prompt.end()));
+      }
+
+      model->run(winput_texts, do_sample, wsystem_head_prompts,
+                 wsystem_tail_prompts);
 #else
-    model->run(input_text, do_sample, system_head_prompt, system_tail_prompt);
+      model->run(input_texts, do_sample, system_head_prompts,
+                 system_tail_prompts);
 #endif
+    } else {
+#if defined(_WIN32)
+      model->run(input_text.c_str(), do_sample, system_head_prompt.c_str(),
+                 system_tail_prompt.c_str());
+#else
+      model->run(input_text, do_sample, system_head_prompt, system_tail_prompt);
+#endif
+    }
 #ifdef PROFILE
     stop_and_print_peak();
 #endif
