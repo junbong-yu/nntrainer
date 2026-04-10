@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "causal_lm.h"
-#include "gauss2_5_causallm.h"
+// #include "gauss2_5_causallm.h"
 #include "gemma3_causallm.h"
 #include "gptoss_cached_slim_causallm.h"
 #include "gptoss_causallm.h"
@@ -166,11 +166,13 @@ static void register_models() {
         return std::make_unique<causallm::Gemma3CausalLM>(cfg, generation_cfg,
                                                           nntr_cfg);
       });
+    /*
     causallm::Factory::Instance().registerModel(
       "GaussForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
         return std::make_unique<causallm::Gauss2_5_Causallm>(
           cfg, generation_cfg, nntr_cfg);
       });
+      */
 
     // Register built-in configurations
     register_builtin_model_configs();
@@ -208,10 +210,12 @@ static std::string apply_chat_template(const std::string &architecture,
     // <start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model\n
     return "<start_of_turn>user\n" + input +
            "<end_of_turn>\n<start_of_turn>model\n";
+    /*
   } else if (architecture == "GaussForCausalLM") {
     return "<|begin_of_text|><|begin_of_text|><|turn_start|>System\n<|turn_end|"
            ">\n<|turn_start|>User\n" +
            input + "\n<|turn_end|>\n<|turn_start|>Assistant\n";
+	   */
   }
   return input;
 }
