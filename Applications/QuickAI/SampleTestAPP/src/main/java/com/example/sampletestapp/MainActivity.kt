@@ -416,7 +416,7 @@ class MainActivity : AppCompatActivity() {
      * (model, quantization) pair rooted in this app's external files
      * dir, so the path lines up with the native C API's hardcoded
      * `./models/<name>-<quant>` prefix (resolve_model_path() in
-     * causal_lm_api.cpp).
+     * quick_dot_ai_api.cpp).
      *
      * Layout — e.g. for QWEN3_0_6B + W4A32:
      *   /sdcard/Android/data/com.example.sampletestapp/files/
@@ -434,12 +434,14 @@ class MainActivity : AppCompatActivity() {
                 "$base/models/gemma-4-E2B-it/gemma-4-E2B-it.litertlm"
             ModelId.QWEN3_0_6B ->
                 "$base/models/qwen3-0.6b${quantizationSuffix(quant)}"
+            ModelId.GAUSS2_5 ->
+                "$base/models/gauss2.5-1b${quantizationSuffix(quant)}"
         }
     }
 
     /**
      * @brief Mirror of `get_quantization_suffix` in
-     * Applications/CausalLM/api/causal_lm_api.cpp — kept in sync so the
+     * Applications/CausalLM/api/api-qdai/quick_dot_ai_api.cpp — kept in sync so the
      * default path stays valid for whichever quant the user picks.
      */
     private fun quantizationSuffix(quant: QuantizationType): String = when (quant) {

@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
 enum class BackendType { CPU, GPU, NPU }
 
 @Serializable
-enum class ModelId { QWEN3_0_6B, GEMMA4 }
+enum class ModelId { QWEN3_0_6B, GAUSS2_5, GEMMA4 }
 
 @Serializable
 enum class QuantizationType { UNKNOWN, W4A32, W16A16, W8A16, W32A32 }

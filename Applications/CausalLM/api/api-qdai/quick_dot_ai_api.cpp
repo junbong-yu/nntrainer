@@ -35,13 +35,6 @@
 #include "qwen3_moe_causallm.h"
 #include "qwen3_slim_moe_causallm.h"
 #include <factory.h>
-<<<<<<< HEAD
-=======
-#ifdef ENABLE_QNN
-#include "gauss3_6_qnn.h"
-#include "gauss3_8_qnn.h"
-#endif
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 #include <fstream>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -82,17 +75,8 @@ static CausalLmModel &get_default_handle() {
 }
 
 static std::map<std::string, std::string> g_model_path_map = {
-<<<<<<< HEAD
   {"QWEN3-0.6B", "qwen3-0.6b"},
   {"GAUSS2.5-1B", "gauss2.5-1b"},
-=======
-    {"QWEN3-0.6B", "qwen3-0.6b"},
-    {"GAUSS2.5-1B", "gauss2.5-1b"},
-#ifdef ENABLE_QNN
-    {"GAUSS3.6-QNN", "gauss3.6-qnn"},
-    {"GAUSS3.8-QNN", "gauss3.8-qnn"},
-#endif
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 };
 
 /**
@@ -181,22 +165,12 @@ static void register_models() {
       "Gemma3ForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
         return std::make_unique<causallm::Gemma3CausalLM>(cfg, generation_cfg,
                                                           nntr_cfg);
-<<<<<<< HEAD
       });
     causallm::Factory::Instance().registerModel(
       "GaussForCausalLM", [](json cfg, json generation_cfg, json nntr_cfg) {
         return std::make_unique<causallm::Gauss2_5_Causallm>(
           cfg, generation_cfg, nntr_cfg);
       });
-=======
-        });
-    causallm::Factory::Instance().registerModel(
-        "Gauss_3_8_QNN", [](json cfg, json generation_cfg, json nntr_cfg) {
-          return std::make_unique<causallm::Gauss3_8_QNN>(cfg, generation_cfg,
-                                                          nntr_cfg);
-        });
-#endif
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 
     // Register built-in configurations
     register_builtin_model_configs();
@@ -209,19 +183,9 @@ static const char *get_model_name_from_type(ModelType type) {
     return "QWEN3-0.6B";
   case CAUSAL_LM_MODEL_GAUSS2_5:
     return "GAUSS2.5-1B";
-<<<<<<< HEAD
   default:
     return nullptr;
   }
-=======
-#ifdef ENABLE_QNN
-  if (type == CAUSAL_LM_MODEL_GAUSS3_6_QNN)
-    return "GAUSS3.6-QNN";
-  if (type == CAUSAL_LM_MODEL_GAUSS3_8_QNN)
-    return "GAUSS3.8-QNN";
-#endif
-  return nullptr;
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 }
 
 static std::string apply_chat_template(const std::string &architecture,

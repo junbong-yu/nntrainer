@@ -26,17 +26,6 @@
 #define CAUSAL_LM_MODEL_GAUSS2_5 ((ModelType)1)
 #endif
 
-<<<<<<< HEAD
-=======
-#ifndef CAUSAL_LM_MODEL_GAUSS3_6_QNN
-#define CAUSAL_LM_MODEL_GAUSS3_6_QNN ((ModelType)2)
-#endif
-
-#ifndef CAUSAL_LM_MODEL_GAUSS3_8_QNN
-#define CAUSAL_LM_MODEL_GAUSS3_8_QNN ((ModelType)3)
-#endif
-
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 #else /* causal_lm_api.h not included — provide full definitions */
 
 #define __CAUSAL_LM_API_H__
@@ -75,11 +64,6 @@ typedef enum {
 typedef enum {
   CAUSAL_LM_MODEL_QWEN3_0_6B = 0,
   CAUSAL_LM_MODEL_GAUSS2_5 = 1,
-<<<<<<< HEAD
-=======
-  CAUSAL_LM_MODEL_GAUSS3_6_QNN = 2,
-  CAUSAL_LM_MODEL_GAUSS3_8_QNN = 3,
->>>>>>> a40dbe3 (Add Gauss 3.8 to Quick.AI API)
 } ModelType;
 
 typedef struct {
