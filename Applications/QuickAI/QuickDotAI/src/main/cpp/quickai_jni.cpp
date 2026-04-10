@@ -6,7 +6,7 @@
  * @brief   JNI shim that forwards calls from Kotlin's
  *          com.example.quickdotai.NativeCausalLm object to the
  *          handle-based C entry points declared in
- *          Applications/CausalLM/api/api-qdai/quick_dot_ai_api.h.
+ *          Applications/CausalLM/api/quick_dot_ai_api.h.
  *
  * This file contains no business logic — only JNI marshalling:
  *   jstring   <-> const char*

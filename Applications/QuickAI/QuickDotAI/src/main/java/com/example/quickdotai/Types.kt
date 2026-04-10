@@ -6,7 +6,7 @@
  * @brief   Value types shared by the QuickDotAI interface and its
  *          implementations.
  *
- * The enums mirror the C enums in Applications/CausalLM/api/api-qdai/quick_dot_ai_api.h.
+ * The enums mirror the C enums in Applications/CausalLM/api/quick_dot_ai_api.h.
  * Kotlin-only values (ModelId.GEMMA4) are additionally defined so the host
  * app can route to LiteRT-LM without crossing the JNI boundary.
  *

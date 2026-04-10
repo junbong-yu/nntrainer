@@ -441,7 +441,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * @brief Mirror of `get_quantization_suffix` in
-     * Applications/CausalLM/api/api-qdai/quick_dot_ai_api.cpp — kept in sync so the
+     * Applications/CausalLM/api/quick_dot_ai_api.cpp — kept in sync so the
      * default path stays valid for whichever quant the user picks.
      */
     private fun quantizationSuffix(quant: QuantizationType): String = when (quant) {

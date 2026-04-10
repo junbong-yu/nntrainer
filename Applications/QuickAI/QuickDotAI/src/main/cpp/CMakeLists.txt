@@ -5,7 +5,7 @@
 #
 # Produces libquickai_jni.so, which forwards JNI calls from Kotlin
 # (com.example.quickdotai.NativeCausalLm) to the C entry points in
-# Applications/CausalLM/api/api-qdai/quick_dot_ai_api.h. The causal_lm_api.so itself
+# Applications/CausalLM/api/quick_dot_ai_api.h. The causal_lm_api.so itself
 # (plus its transitive dependencies libnntrainer.so, libccapi-nntrainer.so,
 # libcausallm_core.so, libc++_shared.so) is shipped as a set of prebuilt
 # shared libraries in Applications/QuickAI/prebuilt_libs/ — see
@@ -21,9 +21,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Path to the QuickDotAI API headers so we can #include "quick_dot_ai_api.h".
 # CMAKE_CURRENT_SOURCE_DIR == QuickDotAI/src/main/cpp, so five levels up
-# lands at Applications/, and then /CausalLM/api/api-qdai points at the headers.
+# lands at Applications/, and then /CausalLM/api points at the headers.
 set(CAUSALLM_API_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../CausalLM/api/api-qdai")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../CausalLM/api")
 
 # Path to the prebuilt native libraries. Layout is flat:
 #   Applications/QuickAI/prebuilt_libs/lib*.so
