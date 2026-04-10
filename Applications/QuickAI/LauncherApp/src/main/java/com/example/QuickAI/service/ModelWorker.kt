@@ -201,7 +201,7 @@ class ModelWorker(
                     }
                     is Job.Run -> {
                         val r = try {
-                            backend.run(job.prompt)
+                            backend.generate(job.prompt)
                         } catch (t: Throwable) {
                             BackendResult.Err(
                                 QuickAiError.INFERENCE_FAILED,
@@ -234,9 +234,9 @@ class ModelWorker(
                             }
                         }
                         try {
-                            backend.runStreaming(job.prompt, guard)
+                            backend.generate(job.prompt, guard)
                         } catch (t: Throwable) {
-                            Log.e(TAG, "runStreaming threw for $modelId", t)
+                            Log.e(TAG, "generate(streaming) threw for $modelId", t)
                             if (!closed) {
                                 guard.onError(
                                     QuickAiError.INFERENCE_FAILED,

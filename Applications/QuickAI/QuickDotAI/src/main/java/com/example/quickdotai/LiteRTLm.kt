@@ -164,33 +164,33 @@ class LiteRTLm(
         }
     }
 
-    override fun run(prompt: String): BackendResult<String> {
+    override fun generate(prompt: String): BackendResult<String> {
         val c = conversation
             ?: run {
-                Log.e(TAG, "run(): called before load() — conversation is null")
+                Log.e(TAG, "generate(): called before load() — conversation is null")
                 return BackendResult.Err(
                     QuickAiError.NOT_INITIALIZED,
                     "LiteRTLm has not been loaded yet"
                 )
             }
 
-        Log.i(TAG, "run(): sending prompt of length ${prompt.length}")
+        Log.i(TAG, "generate(): sending prompt of length ${prompt.length}")
         return try {
             val startNs = System.nanoTime()
             // Blocking synchronous send; callers are expected to drive
-            // us from a background thread. Streaming is handled in
-            // runStreaming() via sendMessageAsync().
+            // us from a background thread. Streaming is handled in the
+            // generate(prompt, sink) overload via sendMessageAsync().
             val message = c.sendMessage(prompt)
             lastRunDurationMs = (System.nanoTime() - startNs) / 1_000_000.0
             val output = message.toString()
             Log.i(
                 TAG,
-                "run(): sendMessage returned in ${lastRunDurationMs.toLong()} ms, " +
+                "generate(): sendMessage returned in ${lastRunDurationMs.toLong()} ms, " +
                     "output length=${output.length}"
             )
             BackendResult.Ok(output)
         } catch (t: Throwable) {
-            Log.e(TAG, "run(): LiteRT-LM sendMessage failed", t)
+            Log.e(TAG, "generate(): LiteRT-LM sendMessage failed", t)
             BackendResult.Err(
                 QuickAiError.INFERENCE_FAILED,
                 t.message ?: "LiteRT-LM inference failed"
@@ -216,13 +216,13 @@ class LiteRTLm(
      * forward the raw text. This handles both shapes without
      * double-emitting tokens.
      */
-    override fun runStreaming(
+    override fun generate(
         prompt: String,
         sink: StreamSink
     ): BackendResult<Unit> {
         val c = conversation
             ?: run {
-                Log.e(TAG, "runStreaming(): called before load()")
+                Log.e(TAG, "generate(streaming): called before load()")
                 val err = BackendResult.Err(
                     QuickAiError.NOT_INITIALIZED,
                     "LiteRTLm has not been loaded yet"
@@ -231,7 +231,7 @@ class LiteRTLm(
                 return err
             }
 
-        Log.i(TAG, "runStreaming(): prompt length=${prompt.length}")
+        Log.i(TAG, "generate(streaming): prompt length=${prompt.length}")
 
         val latch = CountDownLatch(1)
         val accumulated = StringBuilder()
@@ -259,7 +259,7 @@ class LiteRTLm(
                         sink.onDelta(delta)
                     }
                 } catch (t: Throwable) {
-                    Log.w(TAG, "runStreaming(): onMessage threw", t)
+                    Log.w(TAG, "generate(streaming): onMessage threw", t)
                 }
             }
 
@@ -267,7 +267,7 @@ class LiteRTLm(
                 lastRunDurationMs = (System.nanoTime() - startNs) / 1_000_000.0
                 Log.i(
                     TAG,
-                    "runStreaming(): onDone after ${lastRunDurationMs.toLong()} ms, " +
+                    "generate(streaming): onDone after ${lastRunDurationMs.toLong()} ms, " +
                         "total chars=${accumulated.length}"
                 )
                 try {
@@ -278,7 +278,7 @@ class LiteRTLm(
             }
 
             override fun onError(throwable: Throwable) {
-                Log.e(TAG, "runStreaming(): onError from LiteRT-LM", throwable)
+                Log.e(TAG, "generate(streaming): onError from LiteRT-LM", throwable)
                 val err = BackendResult.Err(
                     QuickAiError.INFERENCE_FAILED,
                     throwable.message ?: "LiteRT-LM streaming inference failed"
@@ -300,7 +300,7 @@ class LiteRTLm(
             // isn't parked forever.
             val finished = latch.await(5, TimeUnit.MINUTES)
             if (!finished) {
-                Log.e(TAG, "runStreaming(): timed out waiting for onDone/onError")
+                Log.e(TAG, "generate(streaming): timed out waiting for onDone/onError")
                 val err = BackendResult.Err(
                     QuickAiError.INFERENCE_FAILED,
                     "LiteRT-LM streaming timeout"
@@ -310,7 +310,7 @@ class LiteRTLm(
             }
             terminalError ?: BackendResult.Ok(Unit)
         } catch (t: Throwable) {
-            Log.e(TAG, "runStreaming(): sendMessageAsync threw", t)
+            Log.e(TAG, "generate(streaming): sendMessageAsync threw", t)
             val err = BackendResult.Err(
                 QuickAiError.INFERENCE_FAILED,
                 t.message ?: "LiteRT-LM streaming inference failed"

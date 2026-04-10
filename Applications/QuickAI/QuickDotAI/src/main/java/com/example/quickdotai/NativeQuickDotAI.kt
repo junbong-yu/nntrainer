@@ -138,7 +138,7 @@ class NativeQuickDotAI : QuickDotAI {
         }
     }
 
-    override fun run(prompt: String): BackendResult<String> {
+    override fun generate(prompt: String): BackendResult<String> {
         if (!loaded || handle == 0L) {
             return BackendResult.Err(QuickAiError.NOT_INITIALIZED)
         }
@@ -166,12 +166,12 @@ class NativeQuickDotAI : QuickDotAI {
      * because the C API reports completion through its return code
      * rather than through the streamer vtable.
      */
-    override fun runStreaming(
+    override fun generate(
         prompt: String,
         sink: StreamSink
     ): BackendResult<Unit> {
         if (!loaded || handle == 0L) {
-            Log.e(TAG, "runStreaming(): called before load()")
+            Log.e(TAG, "generate(streaming): called before load()")
             val err = BackendResult.Err(
                 QuickAiError.NOT_INITIALIZED,
                 "NativeQuickDotAI has not been loaded yet"
@@ -180,7 +180,7 @@ class NativeQuickDotAI : QuickDotAI {
             return err
         }
 
-        Log.i(TAG, "runStreaming(): prompt length=${prompt.length}")
+        Log.i(TAG, "generate(streaming): prompt length=${prompt.length}")
         return try {
             val errorCode = NativeCausalLm.runModelHandleStreamingNative(
                 handle,
@@ -195,18 +195,18 @@ class NativeQuickDotAI : QuickDotAI {
                 val err = QuickAiError.fromNativeCode(errorCode)
                 Log.e(
                     TAG,
-                    "runStreaming(): runModelHandleStreaming failed " +
+                    "generate(streaming): runModelHandleStreaming failed " +
                         "errorCode=$errorCode (${err.name})"
                 )
                 sink.onError(err, "runModelHandleStreaming failed (errorCode=$errorCode)")
                 BackendResult.Err(err, "runModelHandleStreaming failed (errorCode=$errorCode)")
             } else {
-                Log.i(TAG, "runStreaming(): native runner returned NONE, signalling onDone")
+                Log.i(TAG, "generate(streaming): native runner returned NONE, signalling onDone")
                 sink.onDone()
                 BackendResult.Ok(Unit)
             }
         } catch (t: Throwable) {
-            Log.e(TAG, "runStreaming(): runModelHandleStreamingNative threw", t)
+            Log.e(TAG, "generate(streaming): runModelHandleStreamingNative threw", t)
             sink.onError(QuickAiError.INFERENCE_FAILED, t.message)
             BackendResult.Err(QuickAiError.INFERENCE_FAILED, t.message)
         }

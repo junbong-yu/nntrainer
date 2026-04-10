@@ -16,7 +16,7 @@
  *
  * Both implementations satisfy the same [QuickDotAI] contract so a host
  * app can pick an engine once at load time and then drive it through a
- * single interface for run / runStreaming / metrics / close.
+ * single interface for generate / metrics / close.
  *
  * Threading: a [QuickDotAI] instance is NOT internally thread-safe. The
  * expectation is that the host app owns exactly one instance per loaded
@@ -44,7 +44,7 @@ sealed class BackendResult<out T> {
 
 /**
  * @brief Where a [QuickDotAI] implementation pushes streamed output
- *        during [QuickDotAI.runStreaming].
+ *        during [QuickDotAI.generate].
  *
  * The contract is:
  *  - zero or more [onDelta] calls carrying newly-generated text,
@@ -67,9 +67,9 @@ interface StreamSink {
 /**
  * @brief Common interface implemented by every QuickDotAI engine.
  *
- * Lifecycle: [load] exactly once, then any number of [run] /
- * [runStreaming] / [metrics] calls, then [close] exactly once. Calling
- * [run] before [load] returns a [BackendResult.Err] with
+ * Lifecycle: [load] exactly once, then any number of [generate] /
+ * [metrics] calls, then [close] exactly once. Calling [generate]
+ * before [load] returns a [BackendResult.Err] with
  * [QuickAiError.NOT_INITIALIZED].
  */
 interface QuickDotAI {
@@ -81,7 +81,7 @@ interface QuickDotAI {
 
     /**
      * @brief Load the model described by [req]. Must be called exactly
-     * once before any [run] or [runStreaming] call.
+     * once before any [generate] call.
      */
     fun load(req: LoadModelRequest): BackendResult<Unit>
 
@@ -91,15 +91,15 @@ interface QuickDotAI {
      * Returns the full decoded generation on success, or a
      * [BackendResult.Err] on failure.
      */
-    fun run(prompt: String): BackendResult<String>
+    fun generate(prompt: String): BackendResult<String>
 
     /**
-     * @brief Streaming variant of [run].
+     * @brief Streaming variant of [generate].
      *
-     * Default implementation simply calls [run] and emits the whole
-     * string as a single delta, so engines without a native streaming
-     * path still work — they just emit one big chunk instead of many
-     * small ones.
+     * Default implementation simply calls the non-streaming [generate]
+     * and emits the whole string as a single delta, so engines without a
+     * native streaming path still work — they just emit one big chunk
+     * instead of many small ones.
      *
      * Streaming-capable engines (both [LiteRTLm] and [NativeQuickDotAI]
      * in this AAR) override this to push progressive deltas through
@@ -110,8 +110,8 @@ interface QuickDotAI {
      * [BackendResult] mirrors the terminal state for the caller's
      * convenience.
      */
-    fun runStreaming(prompt: String, sink: StreamSink): BackendResult<Unit> {
-        return when (val r = run(prompt)) {
+    fun generate(prompt: String, sink: StreamSink): BackendResult<Unit> {
+        return when (val r = generate(prompt)) {
             is BackendResult.Ok -> {
                 if (r.value.isNotEmpty()) sink.onDelta(r.value)
                 sink.onDone()
@@ -127,8 +127,8 @@ interface QuickDotAI {
     /**
      * @brief Unload the model weights without destroying the engine.
      *
-     * After a successful unload the engine is in a "not initialized" state
-     * — subsequent [run] / [runStreaming] / [metrics] calls will return
+     * After a successful unload the engine is in a "not initialized"
+     * state — subsequent [generate] / [metrics] calls will return
      * [QuickAiError.NOT_INITIALIZED]. The instance can still be [close]d
      * normally (and must be, to release any remaining resources).
      *
@@ -138,7 +138,7 @@ interface QuickDotAI {
     fun unload(): BackendResult<Unit>
 
     /**
-     * @brief Fetch performance metrics for the most recent run.
+     * @brief Fetch performance metrics for the most recent generation.
      */
     fun metrics(): BackendResult<PerformanceMetrics>
 

@@ -14,8 +14,9 @@
  *     calls touching a given engine are serialised on the same worker
  *     thread (the interface is not internally thread-safe).
  *  2. Calls [QuickDotAI.load] once per chosen (model, quant) pair.
- *  3. Drives [QuickDotAI.runStreaming] with an in-memory StreamSink that
- *     appends each delta to the output TextView on the main thread.
+ *  3. Drives [QuickDotAI.generate] (streaming overload) with an in-memory
+ *     StreamSink that appends each delta to the output TextView on the
+ *     main thread.
  *
  * This exists as the end-to-end proof that the AAR is genuinely reusable
  * from a third-party app — LauncherApp keeps the HTTP plumbing, but
@@ -56,7 +57,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * @brief Single-thread executor that every [QuickDotAI] call is
      * dispatched on. [QuickDotAI] implementations are NOT thread-safe —
-     * pinning every load / run / metrics / close to one thread mirrors
+     * pinning every load / generate / metrics / close to one thread mirrors
      * what QuickAIService's ModelWorker does internally.
      */
     private val engineExecutor: Executor = Executors.newSingleThreadExecutor { r ->
@@ -191,7 +192,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(promptField)
 
         val runBtn = Button(this).apply {
-            text = "Run (streaming)"
+            text = "Generate (streaming)"
             setOnClickListener { onRunClicked() }
         }
         root.addView(runBtn)
@@ -303,7 +304,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Clear any previous output before we start streaming.
         mainHandler.post { outputView.text = "" }
-        setStatus("Running…")
+        setStatus("Generating…")
 
         engineExecutor.execute {
             val e = engine
@@ -322,12 +323,12 @@ class MainActivity : AppCompatActivity() {
                     setStatus("Run failed: [${error.name}] ${message ?: ""}")
                 }
             }
-            // runStreaming blocks until the backend finishes; that's
-            // fine because we're already off the main thread.
+            // generate(streaming) blocks until the backend finishes;
+            // that's fine because we're already off the main thread.
             try {
-                e.runStreaming(prompt, sink)
+                e.generate(prompt, sink)
             } catch (t: Throwable) {
-                setStatus("Run threw: ${t.message}")
+                setStatus("Generate threw: ${t.message}")
             }
         }
     }
