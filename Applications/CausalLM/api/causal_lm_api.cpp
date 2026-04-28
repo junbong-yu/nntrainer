@@ -27,8 +27,10 @@
 #include "gptoss_cached_slim_causallm.h"
 #endif
 #include "gptoss_causallm.h"
+#include "inference_session.h"
 #include "json.hpp"
 #include "model_config_internal.h"
+#include "model_pool.h"
 #include "qwen2_causallm.h"
 #if !defined(_WIN32)
 #include "qwen3_cached_slim_moe_causallm.h"
@@ -45,7 +47,7 @@
 
 using json = nlohmann::json;
 
-static std::unique_ptr<causallm::Transformer> g_model;
+static std::unique_ptr<causallm::api::InferenceSession> g_default_session;
 static std::mutex g_mutex;
 static bool g_initialized = false;
 static std::string g_architecture = "";
@@ -529,14 +531,17 @@ ErrorCode loadModel(BackendType compute, ModelType modeltype,
       return CAUSAL_LM_ERROR_INVALID_PARAMETER;
     }
 
-    g_model = causallm::Factory::Instance().create(architecture, cfg,
-                                                   generation_cfg, nntr_cfg);
-    if (!g_model) {
+    if (!causallm::api::ModelPool::Instance().loadModel(
+          lookup_name, architecture, cfg, generation_cfg, nntr_cfg,
+          weight_file)) {
       return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
     }
 
-    g_model->initialize();
-    g_model->load_weight(weight_file);
+    g_default_session =
+      causallm::api::ModelPool::Instance().createSession(lookup_name);
+    if (!g_default_session || !g_default_session->model) {
+      return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+    }
 
     g_initialized = true;
     g_architecture = architecture;
@@ -558,7 +563,7 @@ ErrorCode loadModel(BackendType compute, ModelType modeltype,
 }
 
 ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
-  if (!g_initialized || !g_model) {
+  if (!g_initialized || !g_default_session || !g_default_session->model) {
     return CAUSAL_LM_ERROR_NOT_INITIALIZED;
   }
   if (inputTextPrompt == nullptr || outputText == nullptr) {
@@ -574,11 +579,18 @@ ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
       input = apply_chat_template(g_architecture, input);
     }
 
-    // We assume single batch request for this API.
-    g_model->run(input, false, "", "", g_verbose);
+    auto *model = g_default_session->model.get();
 
-    auto causal_lm_model = dynamic_cast<causallm::CausalLM *>(g_model.get());
-    g_last_output = ""; // Reset last output
+// We assume single batch request for this API
+#if defined(_WIN32)
+    model->run(std::wstring(input.begin(), input.end()), false, L"", L"",
+               g_verbose);
+#else
+    model->run(input, false, "", "", g_verbose);
+#endif
+
+    auto causal_lm_model = dynamic_cast<causallm::CausalLM *>(model);
+    g_last_output = "";
     if (causal_lm_model) {
       g_last_output = causal_lm_model->getOutput(0);
     }
@@ -594,7 +606,7 @@ ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
 }
 
 ErrorCode getPerformanceMetrics(PerformanceMetrics *metrics) {
-  if (!g_initialized || !g_model) {
+  if (!g_initialized || !g_default_session || !g_default_session->model) {
     return CAUSAL_LM_ERROR_NOT_INITIALIZED;
   }
   if (metrics == nullptr) {
@@ -603,11 +615,13 @@ ErrorCode getPerformanceMetrics(PerformanceMetrics *metrics) {
 
   try {
     std::lock_guard<std::mutex> lock(g_mutex);
+    auto causal_lm_model =
+      dynamic_cast<causallm::CausalLM *>(g_default_session->model.get());
 
-    if (!g_model->hasRun()) {
+    if (!g_default_session->model->hasRun()) {
       return CAUSAL_LM_ERROR_INFERENCE_NOT_RUN;
     }
-    auto internal_metrics = g_model->getPerformanceMetrics();
+    auto internal_metrics = g_default_session->model->getPerformanceMetrics();
     metrics->prefill_tokens = internal_metrics.prefill_tokens;
     metrics->prefill_duration_ms = internal_metrics.prefill_duration_ms;
     metrics->generation_tokens = internal_metrics.generation_tokens;
