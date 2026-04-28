@@ -302,5 +302,73 @@ int main(int argc, char *argv[]) {
   printLine("═", 63);
   std::cout << "\n";
 
+  // Multi-session test
+  printSection("Multi-Session Test");
+  std::cout << COLOR_CYAN << "⏳ " << COLOR_RESET
+            << "Creating multiple independent sessions...\n";
+
+  SessionHandle session1 = 0, session2 = 0;
+  err = createSession(&session1, CAUSAL_LM_BACKEND_CPU, model_type, quant_type);
+  if (err != CAUSAL_LM_ERROR_NONE) {
+    printError("Failed to create session 1");
+    std::cerr << "  Error code: " << static_cast<int>(err) << "\n";
+  } else {
+    printSuccess("Session 1 created");
+  }
+
+  err = createSession(&session2, CAUSAL_LM_BACKEND_CPU, model_type, quant_type);
+  if (err != CAUSAL_LM_ERROR_NONE) {
+    printError("Failed to create session 2");
+    std::cerr << "  Error code: " << static_cast<int>(err) << "\n";
+  } else {
+    printSuccess("Session 2 created");
+  }
+
+  if (session1 && session2) {
+    std::cout << COLOR_CYAN << "📝 " << COLOR_RESET
+              << "Running inference on session 1...\n";
+    const char *out1 = nullptr;
+    err = runSession(session1, prompt, &out1);
+    if (err == CAUSAL_LM_ERROR_NONE && out1) {
+      std::cout << COLOR_GREEN << "  Output: " << COLOR_RESET << out1 << "\n";
+    } else {
+      printError("Session 1 inference failed");
+    }
+
+    std::cout << COLOR_CYAN << "📝 " << COLOR_RESET
+              << "Running inference on session 2...\n";
+    const char *out2 = nullptr;
+    err = runSession(session2, prompt, &out2);
+    if (err == CAUSAL_LM_ERROR_NONE && out2) {
+      std::cout << COLOR_GREEN << "  Output: " << COLOR_RESET << out2 << "\n";
+    } else {
+      printError("Session 2 inference failed");
+    }
+
+    PerformanceMetrics metrics1;
+    err = getSessionMetrics(session1, &metrics1);
+    if (err == CAUSAL_LM_ERROR_NONE) {
+      std::cout << COLOR_CYAN << "  Session 1 tokens: " << COLOR_RESET
+                << metrics1.generation_tokens << "\n";
+    }
+
+    PerformanceMetrics metrics2;
+    err = getSessionMetrics(session2, &metrics2);
+    if (err == CAUSAL_LM_ERROR_NONE) {
+      std::cout << COLOR_CYAN << "  Session 2 tokens: " << COLOR_RESET
+                << metrics2.generation_tokens << "\n";
+    }
+
+    destroySession(session1);
+    destroySession(session2);
+    printSuccess("Multi-session test completed");
+  }
+
+  printLine("═", 63);
+  std::cout << COLOR_BOLD << COLOR_GREEN << "  ✓ All tests completed!"
+            << COLOR_RESET << "\n";
+  printLine("═", 63);
+  std::cout << "\n";
+
   return 0;
 }
