@@ -121,6 +121,77 @@ WIN_EXPORT ErrorCode getPerformanceMetrics(PerformanceMetrics *metrics);
 WIN_EXPORT ErrorCode runModel(const char *inputTextPrompt,
                               const char **outputText);
 
+/**
+ * @brief Session handle for multi-session inference
+ */
+typedef int SessionHandle;
+
+/**
+ * @brief Create a new inference session
+ *
+ * The model must be loaded via loadModel() before creating a session.
+ *
+ * @param handle Pointer to store the new session handle
+ * @param compute Backend compute type
+ * @param modeltype Model type
+ * @param quant_type Model quantization type
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode createSession(SessionHandle *handle, BackendType compute,
+                                   ModelType modeltype,
+                                   ModelQuantizationType quant_type);
+
+/**
+ * @brief Run inference on a session (synchronous)
+ *
+ * @param handle Session handle
+ * @param inputTextPrompt Input prompt
+ * @param outputText Buffer to store output text
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode runSession(SessionHandle handle,
+                                const char *inputTextPrompt,
+                                const char **outputText);
+
+/**
+ * @brief Run inference on a session (asynchronous)
+ *
+ * @param handle Session handle
+ * @param inputTextPrompt Input prompt
+ * @param requestId Pointer to store the async request ID
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode runSessionAsync(SessionHandle handle,
+                                     const char *inputTextPrompt,
+                                     int *requestId);
+
+/**
+ * @brief Await the result of an async inference request
+ *
+ * @param requestId Request ID returned by runSessionAsync()
+ * @param outputText Buffer to store output text
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode awaitResult(int requestId, const char **outputText);
+
+/**
+ * @brief Get performance metrics of a session
+ *
+ * @param handle Session handle
+ * @param metrics Pointer to PerformanceMetrics struct to be filled
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode getSessionMetrics(SessionHandle handle,
+                                       PerformanceMetrics *metrics);
+
+/**
+ * @brief Destroy a session and free its resources
+ *
+ * @param handle Session handle
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode destroySession(SessionHandle handle);
+
 #ifdef __cplusplus
 }
 #endif

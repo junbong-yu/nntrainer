@@ -47,6 +47,9 @@ struct InferenceSession {
   bool use_chat_template = false;
   bool verbose = false;
 
+  /** Last inference output (session-local storage) */
+  std::string last_output;
+
   InferenceSession() = default;
   ~InferenceSession() = default;
 

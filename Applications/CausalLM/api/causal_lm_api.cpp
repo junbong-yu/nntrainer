@@ -45,6 +45,8 @@
 #include <unistd.h>
 #endif
 
+#include "inference_dispatcher.h"
+
 using json = nlohmann::json;
 
 static std::unique_ptr<causallm::api::InferenceSession> g_default_session;
@@ -56,6 +58,20 @@ static bool g_verbose = false;
 static std::string g_last_output = "";
 static double g_initialization_duration_ms = 0.0;
 static std::unique_ptr<causallm::ChatTemplate> g_chat_template;
+
+// Multi-session state
+static std::unordered_map<SessionHandle,
+                          std::unique_ptr<causallm::api::InferenceSession>>
+  g_sessions;
+static std::mutex g_session_mutex;
+static SessionHandle g_next_handle = 1;
+
+// Async request state
+static std::unordered_map<int, std::future<causallm::api::InferenceResult>>
+  g_pending_futures;
+static std::mutex g_future_mutex;
+static int g_next_request_id = 1;
+static std::string g_async_output;
 
 static std::map<std::string, std::string> g_model_path_map = {
   {"QWEN3-0.6B", "qwen3-0.6b"},
@@ -638,5 +654,245 @@ ErrorCode getPerformanceMetrics(PerformanceMetrics *metrics) {
     return CAUSAL_LM_ERROR_UNKNOWN;
   }
 
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+static std::string get_model_key(ModelType modeltype,
+                                 ModelQuantizationType quant_type) {
+  const char *target_model_name = get_model_name_from_type(modeltype);
+  if (target_model_name == nullptr) {
+    return "";
+  }
+
+  std::string input_name = target_model_name;
+  std::string input_name_upper = input_name;
+  std::transform(input_name_upper.begin(), input_name_upper.end(),
+                 input_name_upper.begin(), ::toupper);
+
+  std::string quant_suffix;
+  switch (quant_type) {
+  case CAUSAL_LM_QUANTIZATION_W4A32:
+    quant_suffix = "-W4A32";
+    break;
+  case CAUSAL_LM_QUANTIZATION_W16A16:
+    quant_suffix = "-W16A16";
+    break;
+  case CAUSAL_LM_QUANTIZATION_W8A16:
+    quant_suffix = "-W8A16";
+    break;
+  case CAUSAL_LM_QUANTIZATION_W32A32:
+    quant_suffix = "-W32A32";
+    break;
+  default:
+    break;
+  }
+
+  return input_name_upper + quant_suffix;
+}
+
+ErrorCode createSession(SessionHandle *handle, BackendType compute,
+                        ModelType modeltype, ModelQuantizationType quant_type) {
+  (void)compute;
+
+  if (handle == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  std::string model_key = get_model_key(modeltype, quant_type);
+  if (model_key.empty()) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!causallm::api::ModelPool::Instance().isLoaded(model_key)) {
+    std::cerr << "createSession: Model not loaded: " << model_key
+              << ". Call loadModel() first." << std::endl;
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  }
+
+  auto session = causallm::api::ModelPool::Instance().createSession(model_key);
+  if (!session || !session->model) {
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  }
+
+  session->use_chat_template = g_use_chat_template;
+  session->verbose = g_verbose;
+
+  std::lock_guard<std::mutex> lock(g_session_mutex);
+  SessionHandle h = g_next_handle++;
+  g_sessions[h] = std::move(session);
+  *handle = h;
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode runSession(SessionHandle handle, const char *inputTextPrompt,
+                     const char **outputText) {
+  if (inputTextPrompt == nullptr || outputText == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  causallm::api::InferenceSession *session = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(g_session_mutex);
+    auto it = g_sessions.find(handle);
+    if (it == g_sessions.end()) {
+      return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+    }
+    session = it->second.get();
+  }
+
+  if (!session || !session->model) {
+    return CAUSAL_LM_ERROR_NOT_INITIALIZED;
+  }
+
+  bool expected = false;
+  if (!session->is_running.compare_exchange_strong(expected, true)) {
+    return CAUSAL_LM_ERROR_INFERENCE_FAILED;
+  }
+
+  try {
+    std::string input(inputTextPrompt);
+    if (session->use_chat_template) {
+      input = apply_chat_template(g_architecture, input);
+    }
+
+#if defined(_WIN32)
+    session->model->run(std::wstring(input.begin(), input.end()), false, L"",
+                        L"", session->verbose);
+#else
+    session->model->run(input, false, "", "", session->verbose);
+#endif
+
+    auto causal_lm_model =
+      dynamic_cast<causallm::CausalLM *>(session->model.get());
+    session->last_output = "";
+    if (causal_lm_model) {
+      session->last_output = causal_lm_model->getOutput(0);
+    }
+
+    *outputText = session->last_output.c_str();
+    session->is_running = false;
+
+  } catch (const std::exception &e) {
+    std::cerr << "Exception in runSession: " << e.what() << std::endl;
+    session->is_running = false;
+    return CAUSAL_LM_ERROR_INFERENCE_FAILED;
+  }
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode runSessionAsync(SessionHandle handle, const char *inputTextPrompt,
+                          int *requestId) {
+  if (inputTextPrompt == nullptr || requestId == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  causallm::api::InferenceSession *session = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(g_session_mutex);
+    auto it = g_sessions.find(handle);
+    if (it == g_sessions.end()) {
+      return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+    }
+    session = it->second.get();
+  }
+
+  if (!session || !session->model) {
+    return CAUSAL_LM_ERROR_NOT_INITIALIZED;
+  }
+
+  std::string prompt(inputTextPrompt);
+  if (session->use_chat_template) {
+    prompt = apply_chat_template(g_architecture, prompt);
+  }
+
+  auto future = causallm::api::InferenceDispatcher::Instance().submit(
+    session->model_key, prompt, session->use_chat_template, session->verbose,
+    g_architecture);
+
+  std::lock_guard<std::mutex> lock(g_future_mutex);
+  int req_id = g_next_request_id++;
+  g_pending_futures[req_id] = std::move(future);
+  *requestId = req_id;
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode awaitResult(int requestId, const char **outputText) {
+  if (outputText == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  std::future<causallm::api::InferenceResult> future;
+  {
+    std::lock_guard<std::mutex> lock(g_future_mutex);
+    auto it = g_pending_futures.find(requestId);
+    if (it == g_pending_futures.end()) {
+      return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+    }
+    future = std::move(it->second);
+    g_pending_futures.erase(it);
+  }
+
+  auto result = future.get();
+  if (result.error_code != CAUSAL_LM_ERROR_NONE) {
+    return result.error_code;
+  }
+
+  g_async_output = result.output;
+  *outputText = g_async_output.c_str();
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode getSessionMetrics(SessionHandle handle, PerformanceMetrics *metrics) {
+  if (metrics == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  causallm::api::InferenceSession *session = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(g_session_mutex);
+    auto it = g_sessions.find(handle);
+    if (it == g_sessions.end()) {
+      return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+    }
+    session = it->second.get();
+  }
+
+  if (!session || !session->model) {
+    return CAUSAL_LM_ERROR_NOT_INITIALIZED;
+  }
+
+  try {
+    auto causal_lm_model =
+      dynamic_cast<causallm::CausalLM *>(session->model.get());
+    if (!causal_lm_model) {
+      return CAUSAL_LM_ERROR_UNKNOWN;
+    }
+
+    if (!causal_lm_model->hasRun()) {
+      return CAUSAL_LM_ERROR_INFERENCE_NOT_RUN;
+    }
+
+    *metrics = causal_lm_model->getPerformanceMetrics();
+
+  } catch (const std::exception &e) {
+    std::cerr << "Exception in getSessionMetrics: " << e.what() << std::endl;
+    return CAUSAL_LM_ERROR_UNKNOWN;
+  }
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode destroySession(SessionHandle handle) {
+  std::lock_guard<std::mutex> lock(g_session_mutex);
+  auto it = g_sessions.find(handle);
+  if (it == g_sessions.end()) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  g_sessions.erase(it);
   return CAUSAL_LM_ERROR_NONE;
 }
