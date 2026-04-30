@@ -106,6 +106,18 @@ WIN_EXPORT ErrorCode loadModel(BackendType compute, ModelType modeltype,
                                ModelQuantizationType quant_type);
 
 /**
+ * @brief Load a model from a custom directory path
+ * @param compute Backend compute type
+ * @param model_path Path to the model directory (containing config.json,
+ * nntr_config.json, etc.)
+ * @param quant_type Model quantization type
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode loadModelFromPath(BackendType compute,
+                                       const char *model_path,
+                                       ModelQuantizationType quant_type);
+
+/**
  * @brief Get performance metrics of the last run
  * @param metrics Pointer to PerformanceMetrics struct to be filled
  * @return ErrorCode
@@ -140,6 +152,22 @@ typedef int SessionHandle;
 WIN_EXPORT ErrorCode createSession(SessionHandle *handle, BackendType compute,
                                    ModelType modeltype,
                                    ModelQuantizationType quant_type);
+
+/**
+ * @brief Create a new inference session from a custom directory path
+ *
+ * The model must be loaded via loadModelFromPath() before creating a session.
+ *
+ * @param handle Pointer to store the new session handle
+ * @param compute Backend compute type
+ * @param model_path Path to the model directory
+ * @param quant_type Model quantization type
+ * @return ErrorCode
+ */
+WIN_EXPORT ErrorCode createSessionFromPath(SessionHandle *handle,
+                                           BackendType compute,
+                                           const char *model_path,
+                                           ModelQuantizationType quant_type);
 
 /**
  * @brief Run inference on a session (synchronous)

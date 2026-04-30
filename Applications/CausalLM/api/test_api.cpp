@@ -6,18 +6,21 @@
  * @date   21 Jan 2026
  * @see    https://github.com/nntrainer/nntrainer
  * @author Eunju Yang <ej.yang@samsung.com>
- * @brief  Simple application to test CausalLM API
- * @bug    No known bugs except for NYI items
+ * @brief  Simple application to test CausalLM API with multi-thread support
  *
  */
 
 #include "causal_lm_api.h"
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -29,7 +32,6 @@ constexpr const char *COLOR_YELLOW = "\033[33m";
 constexpr const char *COLOR_BLUE = "\033[34m";
 constexpr const char *COLOR_RED = "\033[31m";
 constexpr const char *COLOR_MAGENTA = "\033[35m";
-constexpr const char *COLOR_GRAY = "\033[90m";
 
 void printLine(const std::string &s, int length = 80) {
   for (int i = 0; i < length; ++i)
@@ -60,10 +62,6 @@ void printError(const std::string &msg) {
             << msg << "\n";
 }
 
-void printWarning(const std::string &msg) {
-  std::cout << COLOR_YELLOW << "⚠ " << msg << COLOR_RESET << "\n";
-}
-
 void printInfo(const std::string &label, const std::string &value) {
   std::cout << COLOR_CYAN << "  " << label << ":" << COLOR_RESET << " " << value
             << "\n";
@@ -89,15 +87,15 @@ void printLogo() {
 void printUsage(const char *program_name) {
   std::cout << COLOR_YELLOW << "Usage:" << COLOR_RESET << "\n";
   std::cout << "  " << COLOR_BOLD << program_name << COLOR_RESET
-            << " <model_name> [prompt] [use_chat_template] [quantization] "
-               "[verbose] \n\n";
+            << " <model_path> [num_threads] [use_chat_template] [quantization] "
+               "[verbose]\n\n";
 
   std::cout << COLOR_CYAN << "Arguments:" << COLOR_RESET << "\n";
-  std::cout << "  model_name        " << COLOR_BOLD << "REQUIRED" << COLOR_RESET
-            << "  - Model name (e.g., QWEN3-0.6B)\n";
-  std::cout << "  prompt            " << COLOR_GREEN << "OPTIONAL"
+  std::cout << "  model_path        " << COLOR_BOLD << "REQUIRED" << COLOR_RESET
+            << "  - Path to model directory (e.g., /path/to/qwen3-0.6b)\n";
+  std::cout << "  num_threads       " << COLOR_GREEN << "OPTIONAL"
             << COLOR_RESET
-            << "  - Input prompt (default: 'Hello, how are you?')\n";
+            << "  - Number of concurrent sessions (default: 4)\n";
   std::cout << "  use_chat_template " << COLOR_GREEN << "OPTIONAL"
             << COLOR_RESET << "  - 0/1 or true/false (default: 1)\n";
   std::cout << "  quantization      " << COLOR_GREEN << "OPTIONAL"
@@ -108,10 +106,20 @@ void printUsage(const char *program_name) {
 
   std::cout << COLOR_YELLOW << "Examples:" << COLOR_RESET << "\n";
   std::cout << "  " << COLOR_BOLD << program_name << COLOR_RESET
-            << " QWEN3-0.6B \"Tell me a joke\" 1 W4A32\n";
+            << " /path/to/qwen3-0.6b 4 1 W32A32\n";
   std::cout << "  " << COLOR_BOLD << program_name << COLOR_RESET
-            << " QWEN3-0.6B \"Write a poem\" 1 W32A32 1\n\n";
+            << " /path/to/qwen3-0.6b 8 0 UNKNOWN 1\n\n";
 }
+
+struct ThreadResult {
+  int thread_id;
+  std::string prompt;
+  std::string output;
+  ErrorCode error_code;
+  PerformanceMetrics metrics;
+  double elapsed_ms;
+};
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -123,8 +131,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const char *model_name = argv[1];
-  const char *prompt = (argc >= 3) ? argv[2] : "Hello, how are you?";
+  const char *model_path = argv[1];
+  int num_threads = (argc >= 3) ? std::stoi(argv[2]) : 4;
+  if (num_threads <= 0)
+    num_threads = 4;
+
   bool use_chat_template = true;
   if (argc >= 4) {
     use_chat_template =
@@ -145,13 +156,14 @@ int main(int argc, char *argv[]) {
       quant_type = CAUSAL_LM_QUANTIZATION_W32A32;
   }
 
-  bool verbose = true;
+  bool verbose = false;
   if (argc >= 6) {
     verbose = (std::string(argv[5]) == "1" || std::string(argv[5]) == "true");
   }
 
   printSection("Configuration");
-  printInfo("Model Name", model_name);
+  printInfo("Model Path", model_path);
+  printInfo("Num Threads", std::to_string(num_threads));
   printInfo("Use Chat Template", use_chat_template ? "true" : "false");
   printInfo("Quantization", quant_str);
   printInfo("Verbose", verbose ? "true" : "false");
@@ -173,21 +185,10 @@ int main(int argc, char *argv[]) {
 
   printSection("Model Loading");
   std::cout << COLOR_CYAN << "⏳ " << COLOR_RESET
-            << "Loading model: " << COLOR_BOLD << model_name << COLOR_RESET
+            << "Loading model from: " << COLOR_BOLD << model_path << COLOR_RESET
             << "\n";
 
-  // Map string to ModelType
-  ModelType model_type = CAUSAL_LM_MODEL_QWEN3_0_6B;
-  std::string model_name_str(model_name);
-  if (model_name_str == "QWEN3-0.6B") {
-    model_type = CAUSAL_LM_MODEL_QWEN3_0_6B;
-  } else {
-    std::cout << COLOR_YELLOW << "⚠ Warning: Unknown model name '"
-              << model_name_str << "'. Defaulting to QWEN3-0.6B." << COLOR_RESET
-              << "\n";
-  }
-
-  err = loadModel(CAUSAL_LM_BACKEND_CPU, model_type, quant_type);
+  err = loadModelFromPath(CAUSAL_LM_BACKEND_CPU, model_path, quant_type);
 
   if (err != CAUSAL_LM_ERROR_NONE) {
     printError("Failed to load model");
@@ -196,176 +197,170 @@ int main(int argc, char *argv[]) {
   }
   printSuccess("Model loaded successfully");
 
-  printSection("Inference");
-  std::cout << COLOR_CYAN << "📝 " << COLOR_RESET << "Input Prompt:\n";
-  std::cout << COLOR_BOLD << COLOR_YELLOW << "  " << prompt << COLOR_RESET
-            << "\n\n";
+  // Different prompts for each thread
+  std::vector<std::string> prompts = {
+    "Hello! How are you today?",
+    "What is the capital of France?",
+    "Explain quantum computing in simple terms.",
+    "Write a haiku about technology.",
+    "What are the benefits of exercise?",
+    "Describe the taste of chocolate.",
+    "How do airplanes fly?",
+    "What is machine learning?",
+    "Tell me an interesting fact about space.",
+    "Why is the sky blue?",
+  };
 
-  std::cout << COLOR_CYAN << "⚡ " << COLOR_RESET << "Running inference...\n\n";
-
-  const char *outputText = nullptr;
-
-  if (verbose) {
-    std::cout << COLOR_CYAN << "💬 " << COLOR_RESET << "Streaming Output:\n";
-    std::cout << COLOR_BOLD << COLOR_GRAY;
+  if (num_threads > (int)prompts.size()) {
+    size_t original_size = prompts.size();
+    for (int i = original_size; i < num_threads; ++i) {
+      prompts.push_back(prompts[i % original_size]);
+    }
   }
 
-  err = runModel(prompt, &outputText);
+  printSection("Multi-Threaded Inference Test");
+  std::cout << COLOR_CYAN << "⏳ " << COLOR_RESET << "Creating " << num_threads
+            << " sessions and running concurrently...\n\n";
 
-  if (verbose) {
-    std::cout << COLOR_RESET << "\n\n";
-  }
+  std::vector<ThreadResult> results(num_threads);
+  std::vector<std::thread> threads;
+  std::atomic<int> completed_count{0};
 
-  if (err != CAUSAL_LM_ERROR_NONE) {
-    printError("Failed to run model");
-    std::cerr << "  Error code: " << static_cast<int>(err) << "\n";
-    return 1;
-  }
+  auto start_all = std::chrono::high_resolution_clock::now();
 
-  if (outputText) {
-    std::cout << COLOR_CYAN << "💬 " << COLOR_RESET << "Output:\n";
-    std::cout << COLOR_BOLD << COLOR_GREEN << "  ";
-    std::string out(outputText);
-    size_t pos = 0;
-    while (pos < out.length()) {
-      size_t newlinePos = out.find('\n', pos);
-      if (newlinePos == std::string::npos) {
-        newlinePos = out.length();
+  for (int i = 0; i < num_threads; ++i) {
+    threads.emplace_back([&, i]() {
+      SessionHandle session = 0;
+      ErrorCode err = createSessionFromPath(&session, CAUSAL_LM_BACKEND_CPU,
+                                            model_path, quant_type);
+      if (err != CAUSAL_LM_ERROR_NONE) {
+        results[i].thread_id = i;
+        results[i].error_code = err;
+        results[i].prompt = prompts[i];
+        std::cerr << COLOR_RED << "✗ Thread " << i
+                  << ": Failed to create session (error="
+                  << static_cast<int>(err) << ")" << COLOR_RESET << "\n";
+        return;
       }
-      std::string line = out.substr(pos, newlinePos - pos);
-      std::cout << line;
-      if (newlinePos < out.length()) {
-        std::cout << "\n  ";
-        pos = newlinePos + 1;
+
+      const std::string &prompt = prompts[i];
+      results[i].thread_id = i;
+      results[i].prompt = prompt;
+      results[i].error_code = CAUSAL_LM_ERROR_NONE;
+
+      std::string out_filename =
+        std::string("session") + std::to_string(i) + ".txt";
+      std::ofstream out_file(out_filename);
+
+      auto start = std::chrono::high_resolution_clock::now();
+
+      const char *output = nullptr;
+      err = runSession(session, prompt.c_str(), &output);
+
+      auto end = std::chrono::high_resolution_clock::now();
+      results[i].elapsed_ms =
+        std::chrono::duration<double, std::milli>(end - start).count();
+
+      if (err == CAUSAL_LM_ERROR_NONE && output) {
+        results[i].output = std::string(output);
       } else {
-        pos = out.length();
+        results[i].error_code = err;
       }
-    }
-    std::cout << COLOR_RESET << "\n\n";
-  } else {
-    printWarning("No output generated");
+
+      PerformanceMetrics metrics;
+      err = getSessionMetrics(session, &metrics);
+      if (err == CAUSAL_LM_ERROR_NONE) {
+        results[i].metrics = metrics;
+      }
+
+      if (out_file.is_open()) {
+        out_file << "Session: " << i << "\n";
+        out_file << "Prompt: " << prompt << "\n\n";
+        if (results[i].error_code == CAUSAL_LM_ERROR_NONE) {
+          out_file << "Output:\n" << results[i].output << "\n\n";
+          out_file << "Performance Metrics:\n";
+          out_file << "  Prefill tokens: " << metrics.prefill_tokens << "\n";
+          out_file << "  Prefill duration: " << std::fixed
+                   << std::setprecision(2) << metrics.prefill_duration_ms
+                   << " ms\n";
+          out_file << "  Generation tokens: " << metrics.generation_tokens
+                   << "\n";
+          out_file << "  Generation duration: " << std::fixed
+                   << std::setprecision(2) << metrics.generation_duration_ms
+                   << " ms\n";
+          out_file << "  Total duration: " << std::fixed << std::setprecision(2)
+                   << metrics.total_duration_ms << " ms\n";
+          out_file << "  Peak memory: " << metrics.peak_memory_kb / 1024
+                   << " MB\n";
+          out_file << "  Thread elapsed: " << std::fixed << std::setprecision(2)
+                   << results[i].elapsed_ms << " ms\n";
+        } else {
+          out_file << "Error: Inference failed (code="
+                   << static_cast<int>(results[i].error_code) << ")\n";
+        }
+        out_file.close();
+      }
+
+      int completed = ++completed_count;
+      std::cout << COLOR_GREEN << "✓ Thread " << i << " completed ("
+                << completed << "/" << num_threads << ")" << COLOR_RESET
+                << " -> " << out_filename << "\n";
+
+      destroySession(session);
+    });
   }
 
-  printSection("Performance Metrics");
-  PerformanceMetrics metrics;
-  err = getPerformanceMetrics(&metrics);
-  if (err != CAUSAL_LM_ERROR_NONE) {
-    printWarning("Failed to get metrics");
-    std::cout << "  Error code: " << static_cast<int>(err) << "\n";
-  } else {
-    double prefill_tps =
-      metrics.prefill_duration_ms > 0
-        ? (metrics.prefill_tokens / metrics.prefill_duration_ms * 1000.0)
-        : 0.0;
-    double gen_tps =
-      metrics.generation_duration_ms > 0
-        ? (metrics.generation_tokens / metrics.generation_duration_ms * 1000.0)
-        : 0.0;
-
-    std::cout << COLOR_CYAN << "  📊 " << COLOR_RESET << COLOR_BOLD
-              << "Prefill Stage" << COLOR_RESET << "\n";
-    std::cout << COLOR_CYAN << "    Tokens:" << COLOR_RESET << "       "
-              << metrics.prefill_tokens << "\n";
-    std::cout << COLOR_CYAN << "    Duration:" << COLOR_RESET << "     "
-              << std::fixed << std::setprecision(2)
-              << metrics.prefill_duration_ms << " ms\n";
-    std::cout << COLOR_CYAN << "    Throughput:" << COLOR_RESET << "   "
-              << COLOR_BOLD << COLOR_GREEN << std::fixed << std::setprecision(1)
-              << prefill_tps << COLOR_RESET << " tokens/sec\n\n";
-
-    std::cout << COLOR_CYAN << "  📊 " << COLOR_RESET << COLOR_BOLD
-              << "Generation Stage" << COLOR_RESET << "\n";
-    std::cout << COLOR_CYAN << "    Tokens:" << COLOR_RESET << "       "
-              << metrics.generation_tokens << "\n";
-    std::cout << COLOR_CYAN << "    Duration:" << COLOR_RESET << "     "
-              << std::fixed << std::setprecision(2)
-              << metrics.generation_duration_ms << " ms\n";
-    std::cout << COLOR_CYAN << "    Throughput:" << COLOR_RESET << "   "
-              << COLOR_BOLD << COLOR_GREEN << std::fixed << std::setprecision(1)
-              << gen_tps << COLOR_RESET << " tokens/sec\n\n";
-
-    std::cout << COLOR_CYAN << "  📊 " << COLOR_RESET << COLOR_BOLD
-              << "Total Stats" << COLOR_RESET << "\n";
-    std::cout << COLOR_CYAN << "    Init time:" << COLOR_RESET << "    "
-              << std::fixed << std::setprecision(2)
-              << metrics.initialization_duration_ms << " ms\n";
-    std::cout << COLOR_CYAN << "    Duration :" << COLOR_RESET << "    "
-              << std::fixed << std::setprecision(2) << metrics.total_duration_ms
-              << " ms\n";
-    std::cout << COLOR_CYAN << "    Peak Mem:" << COLOR_RESET << "     "
-              << metrics.peak_memory_kb / 1024 << " MB\n\n";
+  for (auto &t : threads) {
+    t.join();
   }
 
-  printLine("═", 63);
-  std::cout << COLOR_BOLD << COLOR_GREEN << "  ✓ Test completed successfully!"
-            << COLOR_RESET << "\n";
-  printLine("═", 63);
-  std::cout << "\n";
+  auto end_all = std::chrono::high_resolution_clock::now();
+  double total_elapsed_ms =
+    std::chrono::duration<double, std::milli>(end_all - start_all).count();
 
-  // Multi-session test
-  printSection("Multi-Session Test");
-  std::cout << COLOR_CYAN << "⏳ " << COLOR_RESET
-            << "Creating multiple independent sessions...\n";
+  printSection("Results Summary");
+  std::cout << COLOR_CYAN << "  Total elapsed time: " << COLOR_RESET
+            << std::fixed << std::setprecision(2) << total_elapsed_ms
+            << " ms\n";
+  std::cout << COLOR_CYAN << "  Number of sessions: " << COLOR_RESET
+            << num_threads << "\n";
+  std::cout << COLOR_CYAN << "  Average per session: " << COLOR_RESET
+            << std::fixed << std::setprecision(2)
+            << total_elapsed_ms / num_threads << " ms\n\n";
 
-  SessionHandle session1 = 0, session2 = 0;
-  err = createSession(&session1, CAUSAL_LM_BACKEND_CPU, model_type, quant_type);
-  if (err != CAUSAL_LM_ERROR_NONE) {
-    printError("Failed to create session 1");
-    std::cerr << "  Error code: " << static_cast<int>(err) << "\n";
-  } else {
-    printSuccess("Session 1 created");
-  }
+  for (int i = 0; i < num_threads; ++i) {
+    const auto &r = results[i];
+    std::cout << "  " << COLOR_BOLD << "Session " << i << ":" << COLOR_RESET
+              << "\n";
+    std::cout << "    Prompt: " << COLOR_YELLOW << r.prompt << COLOR_RESET
+              << "\n";
+    if (r.error_code == CAUSAL_LM_ERROR_NONE) {
+      double prefill_tps =
+        r.metrics.prefill_duration_ms > 0
+          ? (r.metrics.prefill_tokens / r.metrics.prefill_duration_ms * 1000.0)
+          : 0.0;
+      double gen_tps = r.metrics.generation_duration_ms > 0
+                         ? (r.metrics.generation_tokens /
+                            r.metrics.generation_duration_ms * 1000.0)
+                         : 0.0;
 
-  err = createSession(&session2, CAUSAL_LM_BACKEND_CPU, model_type, quant_type);
-  if (err != CAUSAL_LM_ERROR_NONE) {
-    printError("Failed to create session 2");
-    std::cerr << "  Error code: " << static_cast<int>(err) << "\n";
-  } else {
-    printSuccess("Session 2 created");
-  }
-
-  if (session1 && session2) {
-    std::cout << COLOR_CYAN << "📝 " << COLOR_RESET
-              << "Running inference on session 1...\n";
-    const char *out1 = nullptr;
-    err = runSession(session1, prompt, &out1);
-    if (err == CAUSAL_LM_ERROR_NONE && out1) {
-      std::cout << COLOR_GREEN << "  Output: " << COLOR_RESET << out1 << "\n";
+      std::cout << "    Tokens: " << r.metrics.generation_tokens
+                << " (prefill: " << r.metrics.prefill_tokens << ")\n";
+      std::cout << "    Throughput: " << std::fixed << std::setprecision(1)
+                << prefill_tps << " / " << gen_tps << " tokens/sec\n";
+      std::cout << "    Duration: " << std::fixed << std::setprecision(2)
+                << r.elapsed_ms << " ms\n";
+      std::cout << "    Output file: session" << i << ".txt\n";
     } else {
-      printError("Session 1 inference failed");
+      std::cout << "    " << COLOR_RED
+                << "FAILED (error=" << static_cast<int>(r.error_code) << ")"
+                << COLOR_RESET << "\n";
     }
-
-    std::cout << COLOR_CYAN << "📝 " << COLOR_RESET
-              << "Running inference on session 2...\n";
-    const char *out2 = nullptr;
-    err = runSession(session2, prompt, &out2);
-    if (err == CAUSAL_LM_ERROR_NONE && out2) {
-      std::cout << COLOR_GREEN << "  Output: " << COLOR_RESET << out2 << "\n";
-    } else {
-      printError("Session 2 inference failed");
-    }
-
-    PerformanceMetrics metrics1;
-    err = getSessionMetrics(session1, &metrics1);
-    if (err == CAUSAL_LM_ERROR_NONE) {
-      std::cout << COLOR_CYAN << "  Session 1 tokens: " << COLOR_RESET
-                << metrics1.generation_tokens << "\n";
-    }
-
-    PerformanceMetrics metrics2;
-    err = getSessionMetrics(session2, &metrics2);
-    if (err == CAUSAL_LM_ERROR_NONE) {
-      std::cout << COLOR_CYAN << "  Session 2 tokens: " << COLOR_RESET
-                << metrics2.generation_tokens << "\n";
-    }
-
-    destroySession(session1);
-    destroySession(session2);
-    printSuccess("Multi-session test completed");
+    std::cout << "\n";
   }
 
   printLine("═", 63);
-  std::cout << COLOR_BOLD << COLOR_GREEN << "  ✓ All tests completed!"
+  std::cout << COLOR_BOLD << COLOR_GREEN << "  ✓ Multi-threaded test completed!"
             << COLOR_RESET << "\n";
   printLine("═", 63);
   std::cout << "\n";

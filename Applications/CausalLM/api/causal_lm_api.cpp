@@ -578,6 +578,143 @@ ErrorCode loadModel(BackendType compute, ModelType modeltype,
   return CAUSAL_LM_ERROR_NONE;
 }
 
+static std::string get_model_key_from_path(const std::string &model_dir_path,
+                                           ModelQuantizationType quant_type) {
+  std::string base_name;
+  size_t last_slash = model_dir_path.find_last_of("/\\");
+  if (last_slash != std::string::npos) {
+    base_name = model_dir_path.substr(last_slash + 1);
+  } else {
+    base_name = model_dir_path;
+  }
+
+  std::string quant_suffix = get_quantization_suffix(quant_type);
+  std::transform(quant_suffix.begin(), quant_suffix.end(), quant_suffix.begin(),
+                 ::toupper);
+  return base_name + quant_suffix;
+}
+
+ErrorCode loadModelFromPath(BackendType compute, const char *model_path_cstr,
+                            ModelQuantizationType quant_type) {
+  (void)compute;
+  auto start_init = std::chrono::high_resolution_clock::now();
+
+  if (model_path_cstr == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  std::string model_dir_path(model_path_cstr);
+
+  // Ensure models/configs are registered
+  register_models();
+
+  std::lock_guard<std::mutex> lock(g_mutex);
+  try {
+    json cfg;
+    json generation_cfg;
+    json nntr_cfg;
+
+    // Load configuration files from the given path
+    cfg = causallm::LoadJsonFile(model_dir_path + "/config.json");
+    generation_cfg =
+      causallm::LoadJsonFile(model_dir_path + "/generation_config.json");
+    nntr_cfg = causallm::LoadJsonFile(model_dir_path + "/nntr_config.json");
+
+    if (nntr_cfg.contains("tokenizer_file")) {
+      std::string t_file = nntr_cfg["tokenizer_file"];
+      if (!t_file.empty() && t_file[0] == '/') {
+        nntr_cfg["tokenizer_file"] = t_file;
+      } else {
+        nntr_cfg["tokenizer_file"] = model_dir_path + "/" + t_file;
+      }
+    }
+
+    // Construct weight file path
+    std::string weight_file_name;
+    if (nntr_cfg.contains("model_file_name")) {
+      weight_file_name = nntr_cfg["model_file_name"].get<std::string>();
+    } else {
+      weight_file_name = "pytorch_model.bin";
+    }
+    const std::string weight_file = model_dir_path + "/" + weight_file_name;
+
+    // Determine architecture from config
+    std::string architecture;
+    if (cfg.contains("architectures") && cfg["architectures"].is_array() &&
+        !cfg["architectures"].empty()) {
+      architecture = cfg["architectures"].get<std::vector<std::string>>()[0];
+    } else {
+      return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+    }
+
+    std::string lookup_name =
+      get_model_key_from_path(model_dir_path, quant_type);
+
+    if (!causallm::api::ModelPool::Instance().loadModel(
+          lookup_name, architecture, cfg, generation_cfg, nntr_cfg,
+          weight_file)) {
+      return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+    }
+
+    g_default_session =
+      causallm::api::ModelPool::Instance().createSession(lookup_name);
+    if (!g_default_session || !g_default_session->model) {
+      return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+    }
+
+    g_initialized = true;
+    g_architecture = architecture;
+
+    auto finish_init = std::chrono::high_resolution_clock::now();
+    auto init_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+      finish_init - start_init);
+    g_initialization_duration_ms = init_duration.count();
+
+  } catch (const std::exception &e) {
+    std::cerr << "Exception in loadModelFromPath: " << e.what() << std::endl;
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  } catch (...) {
+    std::cerr << "Unknown exception in loadModelFromPath" << std::endl;
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  }
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
+ErrorCode createSessionFromPath(SessionHandle *handle, BackendType compute,
+                                const char *model_path_cstr,
+                                ModelQuantizationType quant_type) {
+  (void)compute;
+
+  if (handle == nullptr || model_path_cstr == nullptr) {
+    return CAUSAL_LM_ERROR_INVALID_PARAMETER;
+  }
+
+  std::string model_dir_path(model_path_cstr);
+  std::string model_key = get_model_key_from_path(model_dir_path, quant_type);
+
+  if (!causallm::api::ModelPool::Instance().isLoaded(model_key)) {
+    std::cerr << "createSessionFromPath: Model not loaded: " << model_key
+              << ". Call loadModelFromPath() first." << std::endl;
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  }
+
+  auto session = causallm::api::ModelPool::Instance().createSession(model_key);
+  if (!session || !session->model) {
+    return CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+  }
+
+  session->use_chat_template = g_use_chat_template;
+  session->verbose = g_verbose;
+
+  std::lock_guard<std::mutex> lock(g_session_mutex);
+  SessionHandle h = g_next_handle++;
+  g_sessions[h] = std::move(session);
+  *handle = h;
+
+  return CAUSAL_LM_ERROR_NONE;
+}
+
 ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
   if (!g_initialized || !g_default_session || !g_default_session->model) {
     return CAUSAL_LM_ERROR_NOT_INITIALIZED;
