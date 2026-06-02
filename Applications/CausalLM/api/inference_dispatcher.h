@@ -16,10 +16,10 @@
 #include <future>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "causal_lm_api.h"
 #include "performance_metrics.h"
-#include <bs_thread_pool.h>
 
 namespace causallm {
 namespace api {
@@ -89,8 +89,8 @@ private:
   InferenceDispatcher();
   ~InferenceDispatcher() = default;
 
-  BS::thread_pool<> pool_;
   std::atomic<int> next_request_id_{1};
+  size_t thread_count_;
 };
 
 } // namespace api

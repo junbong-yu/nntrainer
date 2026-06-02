@@ -735,12 +735,7 @@ ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
     auto *model = g_default_session->model.get();
 
 // We assume single batch request for this API
-#if defined(_WIN32)
-    model->run(std::wstring(input.begin(), input.end()), false, L"", L"",
-               g_verbose);
-#else
     model->run(input, false, "", "", g_verbose);
-#endif
 
     auto causal_lm_model = dynamic_cast<causallm::CausalLM *>(model);
     g_last_output = "";
@@ -893,12 +888,7 @@ ErrorCode runSession(SessionHandle handle, const char *inputTextPrompt,
       input = apply_chat_template(g_architecture, input);
     }
 
-#if defined(_WIN32)
-    session->model->run(std::wstring(input.begin(), input.end()), false, L"",
-                        L"", session->verbose);
-#else
     session->model->run(input, false, "", "", session->verbose);
-#endif
 
     auto causal_lm_model =
       dynamic_cast<causallm::CausalLM *>(session->model.get());
@@ -1013,7 +1003,14 @@ ErrorCode getSessionMetrics(SessionHandle handle, PerformanceMetrics *metrics) {
       return CAUSAL_LM_ERROR_INFERENCE_NOT_RUN;
     }
 
-    *metrics = causal_lm_model->getPerformanceMetrics();
+    auto m = causal_lm_model->getPerformanceMetrics();
+    metrics->prefill_tokens = m.prefill_tokens;
+    metrics->prefill_duration_ms = m.prefill_duration_ms;
+    metrics->generation_tokens = m.generation_tokens;
+    metrics->generation_duration_ms = m.generation_duration_ms;
+    metrics->total_duration_ms = m.total_duration_ms;
+    metrics->initialization_duration_ms = m.initialization_duration_ms;
+    metrics->peak_memory_kb = m.peak_memory_kb;
 
   } catch (const std::exception &e) {
     std::cerr << "Exception in getSessionMetrics: " << e.what() << std::endl;

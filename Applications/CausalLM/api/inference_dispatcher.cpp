@@ -42,7 +42,7 @@ InferenceDispatcher &InferenceDispatcher::Instance() {
 }
 
 InferenceDispatcher::InferenceDispatcher() :
-  pool_(std::thread::hardware_concurrency()) {}
+  thread_count_(std::thread::hardware_concurrency()) {}
 
 std::future<InferenceResult>
 InferenceDispatcher::submit(const std::string &model_key,
@@ -51,8 +51,9 @@ InferenceDispatcher::submit(const std::string &model_key,
 
   int request_id = next_request_id_++;
 
-  return pool_.submit_task([model_key, prompt, use_chat_template, verbose,
-                            architecture, request_id]() -> InferenceResult {
+  return std::async(std::launch::async, [model_key, prompt, use_chat_template,
+                                         verbose, architecture,
+                                         request_id]() -> InferenceResult {
     auto session = ModelPool::Instance().createSession(model_key);
     if (!session || !session->model) {
       InferenceResult result;
@@ -69,17 +70,19 @@ InferenceDispatcher::submit(const std::string &model_key,
         input = apply_chat_template_internal(architecture, input);
       }
 
-#if defined(_WIN32)
-      session->model->run(std::wstring(input.begin(), input.end()), false, L"",
-                          L"", verbose);
-#else
       session->model->run(input, false, "", "", verbose);
-#endif
 
       auto causal_lm = dynamic_cast<causallm::CausalLM *>(session->model.get());
       if (causal_lm) {
         result.output = causal_lm->getOutput(0);
-        result.metrics = causal_lm->getPerformanceMetrics();
+        auto m = causal_lm->getPerformanceMetrics();
+        result.metrics.prefill_tokens = m.prefill_tokens;
+        result.metrics.prefill_duration_ms = m.prefill_duration_ms;
+        result.metrics.generation_tokens = m.generation_tokens;
+        result.metrics.generation_duration_ms = m.generation_duration_ms;
+        result.metrics.total_duration_ms = m.total_duration_ms;
+        result.metrics.initialization_duration_ms = m.initialization_duration_ms;
+        result.metrics.peak_memory_kb = m.peak_memory_kb;
       }
 
       result.error_code = CAUSAL_LM_ERROR_NONE;
@@ -106,10 +109,10 @@ InferenceResult InferenceDispatcher::runSync(const std::string &model_key,
   return future.get();
 }
 
-void InferenceDispatcher::setThreadCount(size_t count) { pool_.reset(count); }
+void InferenceDispatcher::setThreadCount(size_t count) { thread_count_ = count; }
 
 size_t InferenceDispatcher::getThreadCount() const {
-  return pool_.get_thread_count();
+  return thread_count_;
 }
 
 } // namespace api
