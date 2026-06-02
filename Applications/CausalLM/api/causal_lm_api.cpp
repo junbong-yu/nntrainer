@@ -734,7 +734,7 @@ ErrorCode runModel(const char *inputTextPrompt, const char **outputText) {
 
     auto *model = g_default_session->model.get();
 
-// We assume single batch request for this API
+    // We assume single batch request for this API
     model->run(input, false, "", "", g_verbose);
 
     auto causal_lm_model = dynamic_cast<causallm::CausalLM *>(model);

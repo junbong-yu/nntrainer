@@ -51,52 +51,55 @@ InferenceDispatcher::submit(const std::string &model_key,
 
   int request_id = next_request_id_++;
 
-  return std::async(std::launch::async, [model_key, prompt, use_chat_template,
-                                         verbose, architecture,
-                                         request_id]() -> InferenceResult {
-    auto session = ModelPool::Instance().createSession(model_key);
-    if (!session || !session->model) {
+  return std::async(
+    std::launch::async,
+    [model_key, prompt, use_chat_template, verbose, architecture,
+     request_id]() -> InferenceResult {
+      auto session = ModelPool::Instance().createSession(model_key);
+      if (!session || !session->model) {
+        InferenceResult result;
+        result.error_code = CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+        return result;
+      }
+
+      session->is_running = true;
+
       InferenceResult result;
-      result.error_code = CAUSAL_LM_ERROR_MODEL_LOAD_FAILED;
+      try {
+        std::string input = prompt;
+        if (use_chat_template) {
+          input = apply_chat_template_internal(architecture, input);
+        }
+
+        session->model->run(input, false, "", "", verbose);
+
+        auto causal_lm =
+          dynamic_cast<causallm::CausalLM *>(session->model.get());
+        if (causal_lm) {
+          result.output = causal_lm->getOutput(0);
+          auto m = causal_lm->getPerformanceMetrics();
+          result.metrics.prefill_tokens = m.prefill_tokens;
+          result.metrics.prefill_duration_ms = m.prefill_duration_ms;
+          result.metrics.generation_tokens = m.generation_tokens;
+          result.metrics.generation_duration_ms = m.generation_duration_ms;
+          result.metrics.total_duration_ms = m.total_duration_ms;
+          result.metrics.initialization_duration_ms =
+            m.initialization_duration_ms;
+          result.metrics.peak_memory_kb = m.peak_memory_kb;
+        }
+
+        result.error_code = CAUSAL_LM_ERROR_NONE;
+      } catch (const std::exception &e) {
+        std::cerr << "[InferenceDispatcher] Request " << request_id
+                  << " failed: " << e.what() << std::endl;
+        result.error_code = CAUSAL_LM_ERROR_INFERENCE_FAILED;
+      }
+
+      session->is_running = false;
+      ModelPool::Instance().releaseSession(session.get());
+
       return result;
-    }
-
-    session->is_running = true;
-
-    InferenceResult result;
-    try {
-      std::string input = prompt;
-      if (use_chat_template) {
-        input = apply_chat_template_internal(architecture, input);
-      }
-
-      session->model->run(input, false, "", "", verbose);
-
-      auto causal_lm = dynamic_cast<causallm::CausalLM *>(session->model.get());
-      if (causal_lm) {
-        result.output = causal_lm->getOutput(0);
-        auto m = causal_lm->getPerformanceMetrics();
-        result.metrics.prefill_tokens = m.prefill_tokens;
-        result.metrics.prefill_duration_ms = m.prefill_duration_ms;
-        result.metrics.generation_tokens = m.generation_tokens;
-        result.metrics.generation_duration_ms = m.generation_duration_ms;
-        result.metrics.total_duration_ms = m.total_duration_ms;
-        result.metrics.initialization_duration_ms = m.initialization_duration_ms;
-        result.metrics.peak_memory_kb = m.peak_memory_kb;
-      }
-
-      result.error_code = CAUSAL_LM_ERROR_NONE;
-    } catch (const std::exception &e) {
-      std::cerr << "[InferenceDispatcher] Request " << request_id
-                << " failed: " << e.what() << std::endl;
-      result.error_code = CAUSAL_LM_ERROR_INFERENCE_FAILED;
-    }
-
-    session->is_running = false;
-    ModelPool::Instance().releaseSession(session.get());
-
-    return result;
-  });
+    });
 }
 
 InferenceResult InferenceDispatcher::runSync(const std::string &model_key,
@@ -109,11 +112,11 @@ InferenceResult InferenceDispatcher::runSync(const std::string &model_key,
   return future.get();
 }
 
-void InferenceDispatcher::setThreadCount(size_t count) { thread_count_ = count; }
-
-size_t InferenceDispatcher::getThreadCount() const {
-  return thread_count_;
+void InferenceDispatcher::setThreadCount(size_t count) {
+  thread_count_ = count;
 }
+
+size_t InferenceDispatcher::getThreadCount() const { return thread_count_; }
 
 } // namespace api
 } // namespace causallm
